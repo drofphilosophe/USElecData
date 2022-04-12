@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Archsmith"
+  given-names: "James"
+  orcid: "https://orcid.org/0000-0002-6052-0302"
+title: "US Electricity Data"
+version: 0.1.0
+date-released: 2022-04-12
+license: APache-2.0
+identifiers:
+ - description: "US Electricity Data Practitioners Guide"
+   type: url
+   value: "https://econjim.com/WP202201"
+ - description: "US Electricity Data Code Repository"
+   type: url
+   value: "https://github.com/drofphilosophe/USElecData"
+keywords:
+ - Electrity
+ - Emissions
+ 
+url: "https://github.com/drofphilosophe/USElecData"
+
+preferred-citation:
+  authors:
+   - family-names: Archsmith
+     given-names: "James E."
+  title: "US Electricity Data Pratictioners Guide"
+  type: Article
+  year: 2022
