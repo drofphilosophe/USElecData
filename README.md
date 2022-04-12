@@ -1,4 +1,4 @@
-# USElecData
+# United States Electricity Data
 
 This is a repository of code to download, compile and clean high-frequency electricty generation and emissions data for the United States. 
 
