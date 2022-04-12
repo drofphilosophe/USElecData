@@ -1,0 +1,676 @@
+rm(list=ls())
+library(tidyverse)
+library(tcltk)  #Provides a platform-independent progress bar
+library(lubridate)
+library(sf)
+library(units)
+library(haven)
+library(magrittr)
+
+g.drive = "G:"
+#g.drive = "//tsclient/G"
+
+#version.date <- format(now(),"%Y%m%d")
+version.date <- "20200206"
+
+cems.data <- file.path(g.drive,"Shared Drives","CEMSData","data")
+source.path <- file.path(cems.data,"source","hourly")
+
+hourly.path <- file.path(cems.data,"out",version.date,"hourly")
+monthly.path <- file.path(cems.data,"out",version.date,"monthly")
+daily.path <- file.path(cems.data,"out",version.date,"daily")
+
+#Create needed output directories
+for(f in c(hourly.path,monthly.path,daily.path)) {
+  if(!dir.exists(f)) dir.create(f)
+  dir.create(file.path(f,"rds"))
+  dir.create(file.path(f,"stata"))
+}
+
+
+date.start <- ymd("2021-1-1") 
+date.end <- today()
+
+folder.list <- list.dirs(source.path, full.names = FALSE, recursive=FALSE)
+
+#bad.orispl.list <- c(60345L,60926L,60927L)
+bad.orispl.list <- c()
+
+#Define a list of possible levels for the *_MEASURE_FLG variables
+#So we can demote them to factors
+MEASURE_FLG.levels = c(
+  "LME", 
+  "Measured", 
+  "Measured and Substitute", 
+  "Other", 
+  "Substitute", 
+  "Calculated",
+  "Unknown Code",
+  "Undetermined",
+  "Not Applicable")
+
+#Define a list of column names. There are two data formats in CEMS files
+#The 24-column format contains "FAC_ID" and "UNIT_ID" columns not in the 
+#22-column format. These are just ID numbers and don't provide additional 
+#information. Further, they don't map to any external dataset.
+column.names.24 = c(
+  "state",
+  "plant.name.cems",
+  "orispl.code",
+  "cems.unit.id",
+  "OP_DATE",
+  "OP_HOUR",
+  "operational.time",
+  "gross.load",
+  "steam.load",
+  "SO2.mass.lbs",
+  "SO2.mass.measure.flag",
+  "SO2.rate.lbspermmbtu",
+  "SO2.rate.measure.flag",
+  "NOx.rate.lbspermmbtu",
+  "NOx.rate.measure.flag",
+  "NOx.mass.lbs",
+  "NOx.mass.measure.flag",
+  "CO2.mass.tons",
+  "CO2.mass.measure.flag",
+  "CO2.rate.tonspermmbtu",
+  "CO2.rate.measure.flag",
+  "heat.input.mmbtu",
+  "FAC_ID",
+  "UNIT_ID"
+)
+#The 22-column format is the same as the 24 less the last two columns
+column.names.22 = column.names.24[1:22]
+
+#Define data types for each column. Being explicit speeds loading
+#reduces import errors, and actually makes the following code cleaner.
+column.spec.24 = cols(
+  state = col_character(),
+  plant.name.cems = col_character(),
+  orispl.code = col_integer(),
+  cems.unit.id = col_character(),
+  OP_DATE = col_character(),
+  OP_HOUR = col_integer(),
+  operational.time = col_double(),
+  gross.load = col_double(),
+  steam.load = col_double(),
+  SO2.mass.lbs = col_double(),
+  SO2.mass.measure.flag = col_factor(MEASURE_FLG.levels),
+  SO2.rate.lbspermmbtu = col_double(),
+  SO2.rate.measure.flag = col_factor(MEASURE_FLG.levels),
+  NOx.rate.lbspermmbtu = col_double(),
+  NOx.rate.measure.flag = col_factor(MEASURE_FLG.levels),
+  NOx.mass.lbs = col_double(),
+  NOx.mass.measure.flag = col_factor(MEASURE_FLG.levels),
+  CO2.mass.tons = col_double(),
+  CO2.mass.measure.flag = col_factor(MEASURE_FLG.levels),
+  CO2.rate.tonspermmbtu = col_double(),
+  CO2.rate.measure.flag = col_factor(MEASURE_FLG.levels),
+  heat.input.mmbtu = col_double(),
+  FAC_ID = col_skip(),
+  UNIT_ID = col_skip()
+)
+column.spec.22 = cols(
+  state = col_character(),
+  plant.name.cems = col_character(),
+  orispl.code = col_integer(),
+  cems.unit.id = col_character(),
+  OP_DATE = col_character(),
+  OP_HOUR = col_integer(),
+  operational.time = col_double(),
+  gross.load = col_double(),
+  steam.load = col_double(),
+  SO2.mass.lbs = col_double(),
+  SO2.mass.measure.flag = col_factor(MEASURE_FLG.levels),
+  SO2.rate.lbspermmbtu = col_double(),
+  SO2.rate.measure.flag = col_factor(MEASURE_FLG.levels),
+  NOx.rate.lbspermmbtu = col_double(),
+  NOx.rate.measure.flag = col_factor(MEASURE_FLG.levels),
+  NOx.mass.lbs = col_double(),
+  NOx.mass.measure.flag = col_factor(MEASURE_FLG.levels),
+  CO2.mass.tons = col_double(),
+  CO2.mass.measure.flag = col_factor(MEASURE_FLG.levels),
+  CO2.rate.tonspermmbtu = col_double(),
+  CO2.rate.measure.flag = col_factor(MEASURE_FLG.levels),
+  heat.input.mmbtu = col_double()
+)
+
+#Load orispl.code to time zone mapptings into a data frame
+#we'll use them to set time zones later
+read_rds(file.path(cems.data,"intermediate","facility_data","CEMS_Facility_time_zones.rds")) %>%
+  mutate(tz.name = as.character(tz.name)) %>%
+  select(orispl.code,tz.name) %>%
+  arrange(orispl.code) -> tz.map
+
+#Make a list of facilities that have time zone information
+tz.map %>%
+  select(orispl.code) %>%
+  mutate(has.tz = TRUE) -> orispl.with.tz
+
+read_rds(file.path(
+  cems.data,"out", version.date, "facility_data",
+  "rds", "CEMS_Facility_Attributes.rds.bz2")
+  ) %>%
+  distinct(orispl.code, plant.name.cems,year) -> facility.names
+
+
+##Load pre-existing monthly data, if it exists.
+##If not, initialize it as NULL. We have code down the 
+##road to deal with null monthly.data
+if(file.exists(file.path(monthly.path,"rds","CEMS_by_month.rds.gz"))) {
+  read_rds(file.path(monthly.path,"rds","CEMS_by_month.rds.gz")) -> monthly.data
+} else {
+  NULL -> monthly.data
+}
+
+#Loop through each year from the start to the end
+#We're going to write one output file per year
+for(yr in year(date.start):year(date.end) ) {
+  for(q in 1:4) {
+    
+    if(date.start > ymd(str_c(yr,(q-1)*3+1,1,sep="-")) ) next
+    if(date.end < ymd(str_c(yr,q*3,1,sep="-"))) next
+    
+    
+    #Print out where we are
+    print(paste("Processing",yr))
+    
+    #Make a list of facility names for this year
+    facility.names %>%
+      filter(year == yr) %>%
+      group_by(plant.name.cems) %>%
+      summarize(
+        orispl.code = max(orispl.code),
+        n = n(),
+        .groups="drop"
+      ) %>%
+      filter(n == 1) %>%
+      ungroup() %>%
+      select(-n) -> facility.names.current.year
+    
+    #init an empty tibble to hold the full year of data
+    this.year <- tibble()
+    
+    #Check to see if a folder for this year exists
+    #If not, we'll warn the user
+    if(as.character(yr) %in% folder.list) {
+      #Loop through every month in the quarter
+      for(m in ((q-1)*3+1):(q*3) ) {
+        #Get a list of files in this month. They should be <YEAR><ST><MONTH>.zip
+        filename.pattern = str_c(yr,"[a-z][a-z]",str_pad(m,2,pad="0"),".zip")
+        print(str_c("Looking for files matching r'",filename.pattern,"'"))
+        file.list = list.files(file.path(source.path,yr), pattern=filename.pattern)
+        
+        if(length(file.list)==0) {
+          print(str_c("No files found for year ",yr," month ", m, ". Skipping."))
+          next
+        }
+        
+        #init a tibble to hold information ahout the file we've processed for this year
+        files.loaded = tibble()
+        
+        #init a progress bar
+        progress.bar <- tkProgressBar(title = paste("Processing files from",yr,"M",m), 
+                                      min = 0,
+                                      max = length(file.list), 
+                                      width = 500)
+        progress.counter <- 0
+        
+        #Loop through all the files
+        for(f in file.list) {
+          print(paste("Reading",f))
+          
+          
+          #Inspect the first row of f to determine the numer of columns
+          #I tell it to skip field names and read everything as text to 
+          #speed it up and reduce the verboisity of output
+          read_csv(
+            file.path(source.path,yr,f), 
+            n_max=1,
+            col_types=cols(
+              .default=col_character()),
+            col_names=FALSE) %>% 
+            length() -> column.count
+          
+          
+          
+          #If we have 22 columns use the 22-column format
+          #Otherwise the 24 column format
+          if(column.count == 22) {
+            column.names = column.names.22
+            column.spec = column.spec.22
+          } else {
+            column.names = column.names.24
+            column.spec = column.spec.24
+          }
+          
+          
+          #Read the compressed CSV. Skip the first row since I provided column names
+          read_csv(
+            file.path(source.path,yr,f), 
+            col_names=column.names, 
+            col_types=column.spec, 
+            skip=1
+          ) -> data.raw
+          
+          #Count the observations we loaded
+          data.raw %>% 
+            group_by() %>% 
+            tally() %>% 
+            as.numeric -> obs.count
+          
+          #Only continue processing if we read in a non-zero 
+          #number of observations
+          if(obs.count > 0) {
+            data.raw %<>%
+              #Sort order will be important later when we fix
+              #DST errors. Create a record of the original order
+              #in the data.
+              #Convert NA values for steam.load to zeros
+              mutate(
+                row.id = row_number(),
+                steam.load = ifelse(is.na(steam.load),0,steam.load)
+              ) %>%
+              filter(!(orispl.code %in% bad.orispl.list)) -> data.raw
+            
+            # %>%
+            #   #Assign units to some variables
+            #   mutate_at(vars(ends_with(".lbspermmbtu")), .funs = list(~ set_units(.,"lb/MBTU"))) %>%
+            #   mutate_at(vars(ends_with(".lbs")), .funs = list(~ set_units(.,"lb"))) %>%
+            #   mutate_at(vars(ends_with(".tondpermmbtu")), .funs = list(~ set_units(.,"tons/MBTU"))) %>%
+            #   mutate_at(vars(ends_with(".tons")), .funs = list(~ set_units(.,"tons"))) %>%
+            #   mutate_at(vars(ends_with(".mmbtu")),  .funs = list(~ set_units(.,"MBTU"))) %>%
+            #   mutate(
+            #     gross.load = set_units(gross.load,"MW*h"),
+            #     #I don't set the unit on steam load since its in 1000 lbs steam and 
+            #     #that would be confusing
+            #     operational.time = set_units(operational.time,"h")
+            #   )
+            
+            ## There are cases where the wrong ORISPL code is reported for a 
+            ## plant. We're going to match the ORISPL to our cannonical list
+            ## or ORISPL codes then deal with plants that don't match
+            
+            ##Join cannonical ORISPL list
+            data.raw %>%
+              left_join(orispl.with.tz, by="orispl.code") -> data.raw
+            
+            #Look for ORISPL codes that didn't match
+            data.raw %>%
+              filter(is.na(has.tz)) %>% 
+              group_by(orispl.code) %>% 
+              summarize(n=n(),.groups="drop") -> bad.orispl
+            
+            #Only do the following crap if we need to fix ORISPL codes
+            if( nrow(bad.orispl) > 0 ) {
+              ###########################################
+              ## Phase 1 - Try to match the plants by name
+              ###########################################
+              
+              #Take the list of bad ORISPLs and try to match them to the facility
+              #data based on year and name
+              bad.orispl %>%
+                inner_join(data.raw,by="orispl.code") %>%
+                select(orispl.code,plant.name.cems) %>%
+                inner_join(facility.names.current.year, by="plant.name.cems", suffix=c("",".match")) %>%
+                distinct(orispl.code, orispl.code.match) -> orispl.update 
+              
+              #Check to see if we can update any ORISPL codes by name
+              if( count(orispl.update) > 0) {
+                print("Updating the following ORISPL codes using facility name:")
+                print(orispl.update)
+              
+                #Merge in replacement ORISPL codes
+                data.raw %>%
+                  left_join(orispl.update, by="orispl.code") %>%
+                  mutate(
+                    orispl.code = if_else(
+                      is.na(has.tz) & !is.na(orispl.code.match), 
+                      as.integer(orispl.code.match),
+                      orispl.code
+                    ),
+                    has.tz = if_else(!is.na(has.tz) | !is.na(orispl.code.match), TRUE, as.logical(NA) )
+                  ) %>%
+                  select(-orispl.code.match) -> data.raw
+              } else {
+                print("Unable to automatically update any ORISPL codes using the facility name")
+              }
+              
+              
+              ###################################
+              ## Phase 2 - Manual update
+              ##
+              ## If automated matching doesn't work, do manual matching
+              ##################################
+              #Look for plants that still don't match
+              data.raw %>%
+                filter(is.na(has.tz)) %>% 
+                group_by(orispl.code) %>% 
+                summarize(n=n()) -> bad.orispl
+              
+              if(count(bad.orispl) > 0) {
+                data.raw %>%
+                  mutate(
+                    orispl.code.new = case_when( 
+                      #Colorado, Brush 2/4
+                      yr >= 2005 & orispl.code == 55209 ~ 10682L, 
+                      #Default to the original ORISPL code
+                      TRUE ~ as.integer(NA)
+                    )
+                  ) -> data.raw        
+                
+                
+                if(yr==2005) {
+                  data.raw %>%
+                    mutate(
+                      orispl.code.new = case_when(
+                        #Donald Von Raesfeld Power Plant
+                        orispl.code == 8058 ~ 56026L,
+                        #Norwich, CT Combustion Turbine
+                        orispl.code == 880022 ~ 581L,
+                        #DTE/General motors Pontiac
+                        orispl.code == 880081 ~ 10111L,
+                        #Edgecombe Genco. Found using UnitID and this is the only orispl not in the data
+                        orispl.code == 50468 ~ 10384L,
+                        #Plant at An Ohio State University
+                        orispl.code == 14013 ~ 50044L,
+                        #Jasper COunty Generating Facility
+                        orispl.code == 7996 ~ 55927L,
+                        #Sheboygan Falls Energy Facility
+                        orispl.code == 56186 ~ 56166L,
+                        #UUC South Charlston, WV
+                        orispl.code == 880026 ~ 50151L,
+                        #Default to the original ORISPL code
+                        TRUE ~ as.integer(NA)
+                      )
+                    ) -> data.raw
+                } else if(yr==2006) {
+                  # No exceptions       
+                } else if(yr==2007) {
+                  # No exceptions        
+                } else  {
+                  # No exceptions         
+                }
+                
+                #Show a list of codes we updated and then perform the update
+                print("ORISPL codes updated manually:")
+                data.raw %>%
+                  filter(is.na(has.tz)) %>%
+                  distinct(orispl.code, orispl.code.new) %>%
+                  print(n=Inf)
+                
+                #Perform the update
+                data.raw %>%
+                  mutate(
+                    orispl.code = if_else(is.na(has.tz) & !is.na(orispl.code.new), orispl.code.new, orispl.code),
+                    has.tz = if_else(!is.na(has.tz) | !is.na(orispl.code.new), TRUE, NA)
+                  ) %>%
+                  select(-orispl.code.new) -> data.raw
+                
+                
+                
+                ############################################
+                ## Phase 3 - break
+                ## If automated and manual matching don't work, 
+                ## we need to break so the manual matching list can be updated
+                ############################################
+                
+                ##Look for ORISPL codes that don't match the facility data file
+                data.raw %>%
+                  filter(is.na(has.tz)) %>% 
+                  group_by(orispl.code, plant.name.cems) %>% 
+                  summarize(n=n(),.groups="drop") -> bad.orispl
+                
+    
+                if(nrow(bad.orispl) > 0) {
+                  print(sprintf("Bad plant codes in %s",f))
+                  print(bad.orispl,n=Inf)
+                  stop("Terminating")
+                }
+              }
+                
+            }
+            
+            
+            
+            ###################################################
+            ## Deal with time zones
+            ## All times in CEMS are reported in local standard time
+            ## Since some places change time zones over time, I've mapped
+            ## each plant to an Olson name and I use these to compute the 
+            ## local time offset. It's a little tricky because lubridate
+            ## will want to account for DST when using local times. I get 
+            ## around this by computing the local STANDARD time offset
+            ## on each day at 12 AM, converting OP_HOUR and OP_DATE to 
+            ## a UTC time then subtracting the offset.
+            ##################################################
+            data.raw %>%
+              #join time zone names by plant. The Olson names are time-invariant
+              left_join(tz.map, by="orispl.code") -> data.raw
+            
+            data.raw %>%
+              distinct(tz.name) %>%
+              pull(tz.name) -> tz.name.list
+            
+            #Loop over each Olsen name and perform some calculations
+            this.file <- tibble()
+            for(t in tz.name.list) {
+              data.raw %>%
+                filter(tz.name == t) %>%
+                #Times are recorded in local standard time
+                mutate(
+                  datetime.lst = mdy_h(str_c(OP_DATE,OP_HOUR,sep=" "), tz=t),
+                  #Since the time is recorded in LST, when in DST, we need to add an hour to the clock
+                  #That will give us local clock time
+                  datetime.lt = if_else(dst(datetime.lst),datetime.lst + hours(1),datetime.lst),
+                  #Compute the corrisponding time in UTC (coverting local clock time to UTC)
+                  datetime.utc = with_tz(datetime.lt,tz="UTC"),
+                  #Remove time zone information from datetime.lst and datetime.lt so we can compute offsets
+                  datetime.lst = force_tz(datetime.lst,tz="UTC"),
+                  datetime.lt = force_tz(datetime.lt,tz="UTC"),
+                  #Compute offsets
+                  utc.offset.std.time = as.integer(difftime(datetime.lst,datetime.utc,units="hours")),
+                  utc.offset.local.time = as.integer(difftime(datetime.lt,datetime.utc,units="hours"))
+                ) %>%
+                #Remove extra columns
+                select(-OP_DATE,-OP_HOUR,-tz.name,-datetime.lst,-datetime.lt,-plant.name.cems) %>%
+                #Append to this.file
+                rbind(this.file) -> this.file
+              
+              
+              
+              # data.raw %>%
+              #   filter(tz.name == t) %>%
+              #   #Compute the offset between UTC and standard time at this plant on this date
+              #   mutate(
+              #     #Make a time at 0:00 today local time
+              #     today.0.am = mdy_h(str_c(OP_DATE," 0"),tz=t),
+              #     #If this time is on DST, subtract one hour to convert to standard time
+              #     today.0.am.std.time = if_else(dst(today.0.am), today.0.am - hours(1),today.0.am),
+              #     #Compute the offset between standard time and UTC
+              #     utc.offset.std.time = as.integer(
+              #       difftime(
+              #         force_tz(today.0.am.std.time,tz="UTC"),
+              #         today.0.am.std.time,
+              #         units="hours")
+              #     ),
+              #     #Create the time by combining OP_DATE and OP_HOUR in UTC (it's really in local standard time)
+              #     #and apply the standard time offset so we get the time in UTC
+              #     datetime.utc = mdy_h(str_c(OP_DATE," ",OP_HOUR), tz="UTC") - hours(utc.offset.std.time),
+              #     #Now compute the offset to local time including DST
+              #     utc.offset.local.time = as.integer(
+              #       difftime(
+              #         force_tz( with_tz( datetime.utc, tz=t ), tz="UTC" ),
+              #                datetime.utc,
+              #                units="hours")
+              #     )
+              #   ) %>%
+              #   #Remove extra columns
+              #   select(-OP_DATE,-OP_HOUR,-tz.name,-today.0.am,-today.0.am.std.time,-plant.name.cems) %>%
+              #   #Append to this.file
+              #   rbind(this.file) -> this.file
+            }          
+            #Append to previous data
+            this.file %>% 
+              bind_rows(this.year) -> this.year
+            
+            rm(list=c("this.file"))
+          }
+        
+          #Keep a record of the files we processed
+          tibble(
+            state = toupper(substr(f,5,6)),
+            year = as.integer(substr(f,1,4)),
+            month = as.integer(substr(f,7,8)),
+            obs.count = obs.count
+          ) %>% 
+            bind_rows(files.loaded) -> files.loaded
+          
+          #Clean up. I do this for error checking
+          rm(list=c("data.raw"))
+          
+          #Update the progress bar
+          progress.counter<-progress.counter+1
+          setTkProgressBar(progress.bar, 
+                           progress.counter, 
+                           label=paste(progress.counter,"of",length(file.list),"files"))
+        }
+        #Close the progress bar
+        close(progress.bar)
+        
+        this.year %>%
+          arrange(orispl.code, cems.unit.id, datetime.utc) %>%
+          select(
+            orispl.code, 
+            cems.unit.id,
+            datetime.utc, 
+            utc.offset.local.time,
+            utc.offset.std.time,
+            operational.time, 
+            gross.load, 
+            steam.load, 
+            heat.input.mmbtu, 
+            everything()
+          ) -> this.year
+      }
+      #We've finished the year. Write it to a file. 
+      #Just going to used compressed RDS for now
+      if(exists("this.year")) {
+        write_rds(this.year, file.path(hourly.path,"rds",paste0("CEMS_",yr,"Q",q,".rds.gz")), compress="gz")
+        this.year %>%
+          rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
+          write_dta(file.path(hourly.path,"stata",paste0("CEMS_",yr,"Q",q,".dta")))
+      }
+      
+      #write out the files we processed as well
+      if(exists("files.loaded")) write_rds(files.loaded, file.path(hourly.path,"rds",paste0("CEMS_files_",yr,"Q",q,".rds.gz")), compress="gz")
+      
+      ###################
+      ## Compute daily summaries
+      ###################
+      this.year %>%
+        mutate(date.utc = as_date(datetime.utc)) %>%
+        group_by(orispl.code, cems.unit.id, date.utc) %>%
+        summarize(
+          elec.load.mwh = sum(gross.load),
+          steam.load.mmbtu = sum(.97*steam.load),
+          total.heat.input.mmbtu = sum(heat.input.mmbtu),
+          elec.heat.input.mmbtu = sum(heat.input.mmbtu - .97*steam.load),
+          operational.time = sum(operational.time),
+          SO2.mass.lbs = sum(SO2.mass.lbs),
+          NOx.mass.lbs = sum(NOx.mass.lbs),
+          CO2.mass.tons = sum(CO2.mass.tons)
+        ) %>%
+        ungroup() -> this.daily
+      
+      if(exists("this.daily")) {
+        write_rds(this.daily, file.path(daily.path,"rds",paste0("CEMS_",yr,"Q",q,".rds.gz")), compress="gz")
+        this.daily %>%
+          rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
+          write_dta(file.path(daily.path,"stata",paste0("CEMS_",yr,"Q",q,".dta")))
+      }      
+      
+      ###################
+      ##Update the monthly summary
+      ###################
+      #Compute the summary for data in memory
+      this.year %>%
+        mutate(
+          #Create a representation of the local time, but in UTC
+          datetime.local = datetime.utc - hours(utc.offset.local.time),
+          month = ymd(format(datetime.local,"%Y-%m-01"))
+        ) %>%
+        filter(!is.na(month)) %>%
+        #Remove errant local times outside the current quarter
+        #month is always a date on the first of a month
+        filter(
+          month >= ymd(str_c(yr,(q-1)*3+1,1,sep="-")) &
+          month <= ymd(str_c(yr,(q-1)*3+3,30,sep="-"))
+        ) %>%
+        #Reset NA values to zero. You need to respect integer data types
+        #mutate_if(is.numeric, list( ~ replace(., is.na(.), 0))) %>%
+        replace_na(list(
+          operational.time = 0,
+          gross.load = 0,
+          steam.load = 0,
+          heat.input.mmbtu = 0,
+          SO2.mass.lbs = 0,
+          NOx.mass.lbs = 0,
+          CO2.mass.tons = 0
+        )) %>%
+        #Summarize monthly unit-level load, heat input, operational time, and emissions
+        #Make adjustments to steam load to convert it to mmBTU
+        #Also remove steam from heat input in one version
+        group_by(orispl.code, cems.unit.id, month) %>%
+        summarize(
+          elec.load.mwh = sum(gross.load),
+          steam.load.mmbtu = sum(.97*steam.load),
+          total.heat.input.mmbtu = sum(heat.input.mmbtu),
+          elec.heat.input.mmbtu = sum(heat.input.mmbtu - .97*steam.load),
+          operational.time = sum(operational.time),
+          SO2.mass.lbs = sum(SO2.mass.lbs),
+          NOx.mass.lbs = sum(NOx.mass.lbs),
+          CO2.mass.tons = sum(CO2.mass.tons)
+        ) %>%
+        #Compute heat rate
+        mutate(
+          cems.heat.rate = elec.heat.input.mmbtu / elec.load.mwh
+        ) %>%
+        ungroup() -> this.monthly
+      
+      #Combine these new data with the previous monthly data file
+      #If the monthly data is NULL then just save these data to it
+      if(is.null(monthly.data)) {
+        this.monthly -> monthly.data
+      } else {
+        #Remove the dates in this.monthly from the monthly data file
+        this.monthly %>% summarize(MinMonth=min(month)) %>% pull(MinMonth) -> MinMonth
+        this.monthly %>% summarize(MaxMonth=max(month)) %>% pull(MaxMonth) -> MaxMonth
+        
+        monthly.data %>%
+          filter(!between(month,MinMonth,MaxMonth)) %>%
+          rbind(this.monthly) -> monthly.data 
+      }
+      
+      
+    } else {
+      warning(paste("No source data for year", yr,"quarter",q))
+    }
+  }
+}
+
+
+
+####################################
+## Commit the monthly data to disk
+###################################
+monthly.data %>%
+  arrange(orispl.code, cems.unit.id, month) %>%
+  write_rds(file.path(monthly.path,"rds", "CEMS_by_month.rds.gz"),compress="gz") %>%
+  rename_all(.funs=list(~str_replace_all(.,r"--{[\s\.]}--","_"))) %>%
+  write_dta(file.path(monthly.path,"stata","CEMS_by_month.dta"))
+
+
+
+
+
