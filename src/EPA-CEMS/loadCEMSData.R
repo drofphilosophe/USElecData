@@ -6,32 +6,95 @@ library(sf)
 library(units)
 library(haven)
 library(magrittr)
+library(here)
+library(yaml)
 
-g.drive = "G:"
-#g.drive = "//tsclient/G"
+#Identifies the project root path using the
+#relative location of this script
+i_am("src/EPA-CEMS/loadFacilityData.R")
 
-#version.date <- format(now(),"%Y%m%d")
-version.date <- "20200206"
+#Read the project configuration
+read_yaml(here("config.yaml")) -> project.config
+read_yaml(here("config_local.yaml")) -> project.local.config
 
-cems.data <- file.path(g.drive,"Shared Drives","CEMSData","data")
-source.path <- file.path(cems.data,"source","hourly")
+path.project <- file.path(project.local.config$output$path)
+version.date <- project.config$`version-info`$`version-date`
 
-hourly.path <- file.path(cems.data,"out",version.date,"hourly")
-monthly.path <- file.path(cems.data,"out",version.date,"monthly")
-daily.path <- file.path(cems.data,"out",version.date,"daily")
+path.hourly.source = file.path(path.project, "data","source", "EPA-CEMS", "hourly")
+path.facility.out = file.path(path.project, "data","out", "EPA-CEMS","facility_data")
+path.cems.intermediate = file.path(path.project,"data","intermediate","EPA-CEMS")
+path.facility.intermediate = file.path(path.project,"data","intermediate","EPA-CEMS","facility_data")
 
-#Create needed output directories
-for(f in c(hourly.path,monthly.path,daily.path)) {
-  if(!dir.exists(f)) dir.create(f)
-  dir.create(file.path(f,"rds"))
-  dir.create(file.path(f,"stata"))
+date.start <- ymd(str_c(project.config$sources$`EPA-CEMS`$`start-year`,"-1-1"))
+if(is.null(project.config$sources$`EPA-CEMS`$`end-year`)) {
+  date.end <- today()
+} else {
+  date.end <- ymd(str_c(project.config$sources$`EPA-CEMS`$`end-year`,"-12-31"))
 }
 
 
-date.start <- ymd("2021-1-1") 
-date.end <- today()
 
-folder.list <- list.dirs(source.path, full.names = FALSE, recursive=FALSE)
+
+
+#########################
+## Create output data folders
+#########################
+path.hourly.out <- file.path(path.project,"data","out","EPA-CEMS","hourly")
+path.monthly.out <- file.path(path.project,"data","out","EPA-CEMS","monthly")
+path.daily.out <- file.path(path.project,"data","out","EPA-CEMS","daily")
+
+for(f in c(path.hourly.out,path.monthly.out,path.daily.out)) {
+  if(!dir.exists(f)) {
+    dir.create(f,recursive=TRUE)
+    dir.create(file.path(f,"rds"))
+    dir.create(file.path(f,"stata"))
+  }
+}
+
+
+#################################
+## Load the file processing logs
+#################################
+folder.list <- list.dirs(path.hourly.source, full.names = FALSE, recursive=FALSE)
+
+#Walk each folder in folder list and compile a list of all the files in the folder
+input.file.log <- tibble()
+for(f in folder.list) {
+  file.list = list.files(file.path(path.hourly.source,f),pattern=".zip")
+  file.times = file.info(file.path(path.hourly.source,f,file.list))$mtime
+  
+  tibble(
+    Name = file.list,
+    mtile = ymd_hms(file.times)
+  ) %>%
+    mutate(
+      Year = as.integer(str_sub(Name,1,4)),
+      Month = as.integer(str_sub(Name,7,8)),
+      State = str_sub(Name,5,6),
+      Quarter = ceiling(Month/3)
+    ) %>% 
+    bind_rows(input.file.log) -> input.file.log
+}
+
+
+#Compile a list of processed hourly files
+file.list = list.files(file.path(path.hourly.out,"rds"),pattern=".gz")
+file.times = file.info(file.path(path.hourly.out,"rds",file.list))$mtime
+
+tibble(
+  Name = file.list,
+  mtile = ymd_hms(file.times)
+) %>%
+  mutate(
+    Year = as.integer(str_sub(Name,6,9)),
+    Quarter = as.integer(str_sub(Name,11,11)),
+  ) -> output.file.log
+
+
+
+
+
+
 
 #bad.orispl.list <- c(60345L,60926L,60927L)
 bad.orispl.list <- c()
@@ -137,7 +200,7 @@ column.spec.22 = cols(
 
 #Load orispl.code to time zone mapptings into a data frame
 #we'll use them to set time zones later
-read_rds(file.path(cems.data,"intermediate","facility_data","CEMS_Facility_time_zones.rds")) %>%
+read_rds(file.path(path.facility.intermediate,"CEMS_Facility_time_zones.rds")) %>%
   mutate(tz.name = as.character(tz.name)) %>%
   select(orispl.code,tz.name) %>%
   arrange(orispl.code) -> tz.map
@@ -147,21 +210,12 @@ tz.map %>%
   select(orispl.code) %>%
   mutate(has.tz = TRUE) -> orispl.with.tz
 
-read_rds(file.path(
-  cems.data,"out", version.date, "facility_data",
-  "rds", "CEMS_Facility_Attributes.rds.bz2")
+read_rds(
+  file.path(path.facility.out,"rds", "CEMS_Facility_Attributes.rds.bz2")
   ) %>%
   distinct(orispl.code, plant.name.cems,year) -> facility.names
 
 
-##Load pre-existing monthly data, if it exists.
-##If not, initialize it as NULL. We have code down the 
-##road to deal with null monthly.data
-if(file.exists(file.path(monthly.path,"rds","CEMS_by_month.rds.gz"))) {
-  read_rds(file.path(monthly.path,"rds","CEMS_by_month.rds.gz")) -> monthly.data
-} else {
-  NULL -> monthly.data
-}
 
 #Loop through each year from the start to the end
 #We're going to write one output file per year
@@ -171,6 +225,35 @@ for(yr in year(date.start):year(date.end) ) {
     if(date.start > ymd(str_c(yr,(q-1)*3+1,1,sep="-")) ) next
     if(date.end < ymd(str_c(yr,q*3,1,sep="-"))) next
     
+    #Do we need to process this quarter?
+    #Yes if the mtime on the output file is before the mtime 
+    #On any source file for this quarter
+    input.file.log %>%
+      filter(Year == yr & Quarter == q) %>%
+      summarize(mtime = max(mtime)) %>%
+      pull(mtime) -> input.max.time
+    
+    if(is.nan(input.max.time)) {
+      writeLines(str_c("No nput files for ",yr,"Q",q,". Skipping."))
+      next
+    }
+    
+    output.file.log %>%
+      filter(Year == yr & Quarter == q) %>%
+      summarize(mtime = min(mtime)) %>%
+      pull(mtime) -> output.min.time
+    
+    #Check to see if we have an output file
+    if(!is.nan(input.max.time)) {
+      #Compare the largest input file time to the smallest output file time
+      if(input.max.time < output.min.time) {
+        writeLines(str_c("Input files for ",yr,"Q",q," are all older than the output file."))
+        writeLines("It is up-to-date. Skipping")
+        next
+      }
+    }
+    
+
     
     #Print out where we are
     print(paste("Processing",yr))
@@ -196,17 +279,18 @@ for(yr in year(date.start):year(date.end) ) {
     if(as.character(yr) %in% folder.list) {
       #Loop through every month in the quarter
       for(m in ((q-1)*3+1):(q*3) ) {
-        #Get a list of files in this month. They should be <YEAR><ST><MONTH>.zip
-        filename.pattern = str_c(yr,"[a-z][a-z]",str_pad(m,2,pad="0"),".zip")
-        print(str_c("Looking for files matching r'",filename.pattern,"'"))
-        file.list = list.files(file.path(source.path,yr), pattern=filename.pattern)
+        #Get a list of files in this month.
+        input.file.log %>%
+          filter(Year == yr & Month == m) %>%
+          pull(Name) -> file.list
         
         if(length(file.list)==0) {
           print(str_c("No files found for year ",yr," month ", m, ". Skipping."))
           next
         }
         
-        #init a tibble to hold information ahout the file we've processed for this year
+
+        #init a tibble to hold information about the file we've processed for this year
         files.loaded = tibble()
         
         #init a progress bar
@@ -221,11 +305,11 @@ for(yr in year(date.start):year(date.end) ) {
           print(paste("Reading",f))
           
           
-          #Inspect the first row of f to determine the numer of columns
+          #Inspect the first row of f to determine the number of columns
           #I tell it to skip field names and read everything as text to 
-          #speed it up and reduce the verboisity of output
+          #speed it up and reduce the verbosity of output
           read_csv(
-            file.path(source.path,yr,f), 
+            file.path(path.hourly.source,yr,f), 
             n_max=1,
             col_types=cols(
               .default=col_character()),
@@ -247,7 +331,7 @@ for(yr in year(date.start):year(date.end) ) {
           
           #Read the compressed CSV. Skip the first row since I provided column names
           read_csv(
-            file.path(source.path,yr,f), 
+            file.path(path.hourly.source,yr,f), 
             col_names=column.names, 
             col_types=column.spec, 
             skip=1
@@ -273,20 +357,7 @@ for(yr in year(date.start):year(date.end) ) {
               ) %>%
               filter(!(orispl.code %in% bad.orispl.list)) -> data.raw
             
-            # %>%
-            #   #Assign units to some variables
-            #   mutate_at(vars(ends_with(".lbspermmbtu")), .funs = list(~ set_units(.,"lb/MBTU"))) %>%
-            #   mutate_at(vars(ends_with(".lbs")), .funs = list(~ set_units(.,"lb"))) %>%
-            #   mutate_at(vars(ends_with(".tondpermmbtu")), .funs = list(~ set_units(.,"tons/MBTU"))) %>%
-            #   mutate_at(vars(ends_with(".tons")), .funs = list(~ set_units(.,"tons"))) %>%
-            #   mutate_at(vars(ends_with(".mmbtu")),  .funs = list(~ set_units(.,"MBTU"))) %>%
-            #   mutate(
-            #     gross.load = set_units(gross.load,"MW*h"),
-            #     #I don't set the unit on steam load since its in 1000 lbs steam and 
-            #     #that would be confusing
-            #     operational.time = set_units(operational.time,"h")
-            #   )
-            
+
             ## There are cases where the wrong ORISPL code is reported for a 
             ## plant. We're going to match the ORISPL to our cannonical list
             ## or ORISPL codes then deal with plants that don't match
@@ -477,38 +548,6 @@ for(yr in year(date.start):year(date.end) ) {
                 #Append to this.file
                 rbind(this.file) -> this.file
               
-              
-              
-              # data.raw %>%
-              #   filter(tz.name == t) %>%
-              #   #Compute the offset between UTC and standard time at this plant on this date
-              #   mutate(
-              #     #Make a time at 0:00 today local time
-              #     today.0.am = mdy_h(str_c(OP_DATE," 0"),tz=t),
-              #     #If this time is on DST, subtract one hour to convert to standard time
-              #     today.0.am.std.time = if_else(dst(today.0.am), today.0.am - hours(1),today.0.am),
-              #     #Compute the offset between standard time and UTC
-              #     utc.offset.std.time = as.integer(
-              #       difftime(
-              #         force_tz(today.0.am.std.time,tz="UTC"),
-              #         today.0.am.std.time,
-              #         units="hours")
-              #     ),
-              #     #Create the time by combining OP_DATE and OP_HOUR in UTC (it's really in local standard time)
-              #     #and apply the standard time offset so we get the time in UTC
-              #     datetime.utc = mdy_h(str_c(OP_DATE," ",OP_HOUR), tz="UTC") - hours(utc.offset.std.time),
-              #     #Now compute the offset to local time including DST
-              #     utc.offset.local.time = as.integer(
-              #       difftime(
-              #         force_tz( with_tz( datetime.utc, tz=t ), tz="UTC" ),
-              #                datetime.utc,
-              #                units="hours")
-              #     )
-              #   ) %>%
-              #   #Remove extra columns
-              #   select(-OP_DATE,-OP_HOUR,-tz.name,-today.0.am,-today.0.am.std.time,-plant.name.cems) %>%
-              #   #Append to this.file
-              #   rbind(this.file) -> this.file
             }          
             #Append to previous data
             this.file %>% 
@@ -556,14 +595,24 @@ for(yr in year(date.start):year(date.end) ) {
       #We've finished the year. Write it to a file. 
       #Just going to used compressed RDS for now
       if(exists("this.year")) {
-        write_rds(this.year, file.path(hourly.path,"rds",paste0("CEMS_",yr,"Q",q,".rds.gz")), compress="gz")
-        this.year %>%
-          rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
-          write_dta(file.path(hourly.path,"stata",paste0("CEMS_",yr,"Q",q,".dta")))
+        if("rds" %in% project.local.config$output$formats) {
+          this.year %>%
+            write_rds(
+              file.path(path.hourly.out,"rds",str_c("CEMS_",yr,"Q",q,".rds.gz")), 
+              compress="gz"
+              )
+        }
+        
+        if("dta" %in% project.local.config$output$formats) {
+          this.year %>%
+            rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
+            write_dta(
+              file.path(path.hourly.out,"stata",str_c("CEMS_",yr,"Q",q,".dta"))
+              )
+        }
       }
       
-      #write out the files we processed as well
-      if(exists("files.loaded")) write_rds(files.loaded, file.path(hourly.path,"rds",paste0("CEMS_files_",yr,"Q",q,".rds.gz")), compress="gz")
+      
       
       ###################
       ## Compute daily summaries
@@ -584,43 +633,31 @@ for(yr in year(date.start):year(date.end) ) {
         ungroup() -> this.daily
       
       if(exists("this.daily")) {
-        write_rds(this.daily, file.path(daily.path,"rds",paste0("CEMS_",yr,"Q",q,".rds.gz")), compress="gz")
-        this.daily %>%
-          rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
-          write_dta(file.path(daily.path,"stata",paste0("CEMS_",yr,"Q",q,".dta")))
+        if("rds" %in% project.local.config$output$formats) {
+          this.daily %>%
+            write_rds(
+              file.path(path.daily.out,"rds",paste0("CEMS_",yr,"Q",q,".rds.gz")), 
+              compress="gz"
+            )
+        }
+          
+        if("dta" %in% project.local.config$output$formats) {  
+          this.daily %>%
+            rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
+            write_dta(
+              file.path(path.daily.out,"stata",paste0("CEMS_",yr,"Q",q,".dta"))
+              )
+        }
       }      
       
       ###################
-      ##Update the monthly summary
+      ##Compute Monthly Summary
       ###################
-      #Compute the summary for data in memory
       this.year %>%
         mutate(
-          #Create a representation of the local time, but in UTC
           datetime.local = datetime.utc - hours(utc.offset.local.time),
-          month = ymd(format(datetime.local,"%Y-%m-01"))
+          month = floor_date(datetime.local,"month")
         ) %>%
-        filter(!is.na(month)) %>%
-        #Remove errant local times outside the current quarter
-        #month is always a date on the first of a month
-        filter(
-          month >= ymd(str_c(yr,(q-1)*3+1,1,sep="-")) &
-          month <= ymd(str_c(yr,(q-1)*3+3,30,sep="-"))
-        ) %>%
-        #Reset NA values to zero. You need to respect integer data types
-        #mutate_if(is.numeric, list( ~ replace(., is.na(.), 0))) %>%
-        replace_na(list(
-          operational.time = 0,
-          gross.load = 0,
-          steam.load = 0,
-          heat.input.mmbtu = 0,
-          SO2.mass.lbs = 0,
-          NOx.mass.lbs = 0,
-          CO2.mass.tons = 0
-        )) %>%
-        #Summarize monthly unit-level load, heat input, operational time, and emissions
-        #Make adjustments to steam load to convert it to mmBTU
-        #Also remove steam from heat input in one version
         group_by(orispl.code, cems.unit.id, month) %>%
         summarize(
           elec.load.mwh = sum(gross.load),
@@ -632,25 +669,25 @@ for(yr in year(date.start):year(date.end) ) {
           NOx.mass.lbs = sum(NOx.mass.lbs),
           CO2.mass.tons = sum(CO2.mass.tons)
         ) %>%
-        #Compute heat rate
-        mutate(
-          cems.heat.rate = elec.heat.input.mmbtu / elec.load.mwh
-        ) %>%
         ungroup() -> this.monthly
       
-      #Combine these new data with the previous monthly data file
-      #If the monthly data is NULL then just save these data to it
-      if(is.null(monthly.data)) {
-        this.monthly -> monthly.data
-      } else {
-        #Remove the dates in this.monthly from the monthly data file
-        this.monthly %>% summarize(MinMonth=min(month)) %>% pull(MinMonth) -> MinMonth
-        this.monthly %>% summarize(MaxMonth=max(month)) %>% pull(MaxMonth) -> MaxMonth
+      if(exists("this.monthly")) {
+        if("rds" %in% project.local.config$output$formats) {
+          this.monthly %>%
+            write_rds(
+              file.path(path.monthly.out,"rds",paste0("CEMS_",yr,"Q",q,".rds.gz")), 
+              compress="gz"
+            )
+        }
         
-        monthly.data %>%
-          filter(!between(month,MinMonth,MaxMonth)) %>%
-          rbind(this.monthly) -> monthly.data 
-      }
+        if("dta" %in% project.local.config$output$formats) {  
+          this.monthly %>%
+            rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
+            write_dta(
+              file.path(path.monthly.out,"stata",paste0("CEMS_",yr,"Q",q,".dta"))
+            )
+        }
+      } 
       
       
     } else {
@@ -662,13 +699,30 @@ for(yr in year(date.start):year(date.end) ) {
 
 
 ####################################
-## Commit the monthly data to disk
+## Combine all monthly data into a single file
 ###################################
-monthly.data %>%
-  arrange(orispl.code, cems.unit.id, month) %>%
-  write_rds(file.path(monthly.path,"rds", "CEMS_by_month.rds.gz"),compress="gz") %>%
-  rename_all(.funs=list(~str_replace_all(.,r"--{[\s\.]}--","_"))) %>%
-  write_dta(file.path(monthly.path,"stata","CEMS_by_month.dta"))
+file.list = list.files(file.path(path.monthly.out,"rds"),pattern=".gz")
+all.months <- tibble()
+for(f in file.list) {
+  read_rds(file.path(path.monthly.out,"rds",f)) %>%
+    bind_rows(all.months) -> all.months
+}
+
+if("rds" %in% project.local.config$output$formats) {
+  all.months %>%
+    write_rds(
+      file.path(path.monthly.out,"rds","CEMS_All_Months.rds.gz"), 
+      compress="gz"
+    )
+}
+
+if("dta" %in% project.local.config$output$formats) {  
+  all.months %>%
+    rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
+    write_dta(
+      file.path(path.monthly.out,"stata","CEMS_All_Months.dta")
+    )
+}
 
 
 
