@@ -1,11 +1,9 @@
 ######################
-## downloadCEMSData.py
+## downloadFacilityInfo.py
 ##
-## This script will download raw CEMS data files
-## from the EPA's FTP server. It will construct
-## a list of available files, check against the
-## local archive of files for newer versions,
-## and only download data files that have changed.
+## Download facility attributes from the AMPD website
+## This code is currently non-functional and the file
+## should be downloaded manually
 #######################
 import urllib.request
 import zipfile
@@ -24,4 +22,4 @@ opener = urllib.request.build_opener(cookieproc)
 with opener.open(URL1) as resp :
 
     for cookie in cookiejar:
-        print(cookie.name, cookie.value)   
+        print(cookie.name, cookie.value)

@@ -1,0 +1,10 @@
+#Modify this file and save as config_local.yaml
+output:
+  #The absolute path to the root directory of where the scripts should store data
+  #Use local conventions for file names and path separators
+  #Scripts will make a data subfolder with many additional subfolders
+  path: /path/to/USElecData
+  #A list of output data formats. Current possible values are "rds" and "dta"
+  formats:
+    - rds
+    - dta

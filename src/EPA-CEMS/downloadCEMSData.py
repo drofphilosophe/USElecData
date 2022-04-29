@@ -13,21 +13,61 @@ import os
 import re
 import datetime as dt
 import io
+import yaml
 
-#Path to local copy of the data.
-#Subfolders should be years
-#ZIP files inside
-outPathBase = r"g:\Shared Drives\CEMSData\data\source\hourly"
+#########################
+## Load and register the configuration
+#########################
+#Determine the path to this script
+scriptPath, _ = os.path.split(os.path.realpath(__file__))
+projectRoot = os.path.join(scriptPath,"..","..")
+
+#Load the config.yaml and config_local.yaml configuration Files
+with open(os.path.join(projectRoot,"config.yaml")) as yamlin :
+    projectConfig = yaml.safe_load(yamlin)
+
+with open(os.path.join(projectRoot,"config_local.yaml")) as yamlin :
+    projectLocalConfig = yaml.safe_load(yamlin)
+
+outputRoot = projectLocalConfig["output"]["path"]
+outPathBase = os.path.join(outputRoot,"data","source","EPA-CEMS","hourly")
+
+#Construct the directory tree if it doesn't already exist
+if os.path.isdir(outputRoot) :
+    #Check that the data directiry exists
+    if not os.path.isdir(outPathBase) :
+        os.makedirs(outPathBase)
+else :
+    raise FileNotFoundError(
+    "The data output defined path in the configuration file does not exist\n" +
+    "Expecing path: " + outputRoot
+    )
+
+
+
 
 #Path to EPA hourly CEMS data. Subfolders should be years
-baseURL = "ftp://newftp.epa.gov/DMDnLoad/emissions/hourly/monthly"
+baseURL = projectConfig["sources"]["EPA-CEMS"]["URL-hourly"]
 
-startYear = 2021
-endYear = 2022
+#Years to process
+startYear = int(projectConfig["sources"]["EPA-CEMS"]["start-year"])
+endYear = projectConfig["sources"]["EPA-CEMS"]["end-year"]
+if endYear is None or endYear.strip() == "" :
+    endYear = dt.date.today().year
+else :
+    endYear = int(endYear)
 
+
+
+
+
+
+###################################
+## Download CEMS data
+###################################
 for yr in range(startYear,endYear+1) :
     outPath = os.path.join(outPathBase,str(yr))
-    
+
     #Check to see if the output folder exist
     if not os.path.isdir(outPath) :
         os.mkdir(outPath)
@@ -98,11 +138,11 @@ for yr in range(startYear,endYear+1) :
                 ##go through this process? First I want
                 ##to check the file is structured the way I expect
                 ##Second, this verifies the integreity of the zip file.
-                
+
                 #The source file is a zip file. open it in a context handler
                 with zipfile.ZipFile(buf) as zipin :
                     csv_name = os.path.splitext(f)[0] + ".csv"
-                    with zipin.open(csv_name,"r") as fin :                    
+                    with zipin.open(csv_name,"r") as fin :
                         #Open an output file. It is a zip archive
                         print("Writing File",f)
                         with zipfile.ZipFile(os.path.join(outPath,f),"w") as zipout :
@@ -111,6 +151,3 @@ for yr in range(startYear,endYear+1) :
                                 fout.write(fin.read())
         else :
             print("We already have an up-to-date version of",f)
-
-
-        

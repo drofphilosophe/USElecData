@@ -1,0 +1,13 @@
+version-info:
+  version-number: 0.1
+  version-date: 20220429
+sources:
+  tz-info:
+    #Name of github repo with the time zone data
+    repository-name: evansiroky/timezone-boundary-builder
+    #Release number of time zone data
+    release: 2021c
+  EPA-CEMS:
+    URL-hourly: ftp://newftp.epa.gov/DMDnLoad/emissions/hourly/monthly
+    start-year: 1997
+    end-year:

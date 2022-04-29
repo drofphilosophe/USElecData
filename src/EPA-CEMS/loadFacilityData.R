@@ -4,23 +4,35 @@ library(lubridate)
 library(sf)
 library(curl)
 library(haven)
+library(here)
+library(yaml)
 
-g.drive = Sys.getenv("GoogleDrivePath")
-g.shared.drive = "G:"
+#Identifies the project root path using the
+#relative location of this script
+i_am("src/EPA-CEMS/loadFacilityData.R")
 
-cems.data <- file.path(g.shared.drive,"Shared Drives","CEMSData","data")
-tz.data <- file.path(g.drive, "Data","time","time_zone_map","tz_world_mp", "World")
+#Read the project configuration
+read_yaml(here("config.yaml")) -> project.config
+read_yaml(here("config_local.yaml")) -> project.local.config
+
+path.project <- file.path(project.local.config$output$path)
+version.date <- project.config$`version-info`$`version-date`
+
+#########################
+## Create output data folders
+#########################
+path.facility.intermediate = file.path(path.project, "data","intermediate", "EPA-CEMS","facility_data")
+path.facility.out = file.path(path.project, "data","out", "EPA-CEMS","facility_data")
+path.facility.diagnostics = file.path(path.project,"diagnostics","EPA-CEMS","facility_data")
 
 
-version.date <- "20200206" #format(now(),"%Y%m%d")
+for(f in c(path.facility.intermediate,path.facility.out,path.facility.diagnostics)) {
+  if(!dir.exists(f)) dir.create(f,recursive=TRUE)
+}
 
-#Define the filename of the facility data file
-#facility.data.filename <- "facility_03-04-2020_161549248.csv"
-facility.data.filename <- "EPADownload_20220211.zip"
 
 
 #Define the planar CRS for use later
-#planar.crs = st_crs(2163)
 planar.crs = st_crs(4326)
 
 ######################
@@ -40,7 +52,7 @@ facility.coltypes = cols(
 
 
 read_csv(
-  file.path(cems.data, "source", "FacilityData", facility.data.filename),
+  file.path(path.project,"data", "source", "EPA-CEMS","facility_data", "FacilityData.zip"),
   col_types = facility.coltypes
 ) %>% 
   rename(
@@ -85,7 +97,7 @@ read_csv(
 ###################################
 ###################################
 
-#Collapase each to a sigle year-ORISPL pair 
+#Collapase each to a single year-ORISPL pair 
 #Find any plants that move by more than 0.1 degrees
 #Across the entire date range and add SF geometry
 facility %>% 
@@ -97,7 +109,9 @@ facility %>%
     MinLat = min(plant.latitude),
     MinLong = min(plant.longitude),
     MaxLat = max(plant.latitude),
-    MaxLong = max(plant.longitude)
+    MaxLong = max(plant.longitude),
+    state.abriv = first(state.abriv),
+    .groups="drop"
   ) %>%
   mutate(
     plant.latitude = ifelse(MaxLat - MinLat < 0.01, MinLat,NA),
@@ -109,24 +123,25 @@ facility %>%
     MinLat = min(plant.latitude),
     MinLong = min(plant.longitude),
     MaxLat = max(plant.latitude),
-    MaxLong = max(plant.longitude)
+    MaxLong = max(plant.longitude),
+    state.abriv = first(state.abriv)
   ) %>%
   mutate(
     plant.latitude = ifelse(MaxLat - MinLat < 0.01, MinLat,NA),
     plant.longitude = ifelse(MaxLong - MinLong < 0.01, MinLong, NA)
   ) %>%
-  select(orispl.code, plant.latitude, plant.longitude) -> facility.geodata
+  select(orispl.code, plant.latitude, plant.longitude,state.abriv) -> facility.geodata
 
 #Create a dataset of only plants for which we can't establish the location
 facility.geodata %>% 
-  filter(is.na(plant.longitude) | is.na(plant.latitude) ) %>%
+  drop_na(plant.latitude,plant.longitude) %>%
   select(orispl.code) -> facility.bad.geodata 
 
 
 ##Write out a CSV of facilities that we need to geocode manually
 write_csv(
   facility.bad.geodata, 
-  file.path(cems.data,"intermediate","facility_data","CEMS_Facilities_with_bad_geodata.csv")
+  file.path(path.facility.intermediate,"CEMS_Facilities_with_bad_geodata.csv")
 )
 
 ##Here you should load in updates for the bad geometries and merge them back into 
@@ -169,14 +184,17 @@ st_crs(facility.bbox) = planar.crs
 ## Load time zone shapefile, transform to planar projection
 ## And limit to features that intersect the facility bounding box
 #######################
-st_read(file.path(tz.data,"tz_world_mp.shp")) %>% 
-  st_transform(planar.crs) %>% 
+sf::sf_use_s2(FALSE)
+st_read(
+  file.path(path.project,"data","source","tz-info","tz-geodata-combined-with-oceans.json"),
+  drivers = "GeoJSON"
+  )  %>% 
+  st_transform(planar.crs) %>%
+  rename(TZID = tzid) %>%
   #Remove Antarctica
   filter( TZID != "uninhabited") %>%
   #Remove time zones that are outside the bounding box containing all CEMS plants
-  filter(
-    st_intersects(x=., y=facility.bbox, sparse=FALSE)
-  ) -> tz.map.sf
+  st_filter(facility.bbox, .predicate=st_intersects) -> tz.map.sf
 
 #Show us what you got  
 print("Facility BBOX:")
@@ -191,171 +209,59 @@ myMap.grid = ggplot() + #Open a plot
   geom_sf(data = facility.geodata.sf, color='black', size=.5, shape=".")
 
 #print(myMap.grid)
-ggsave(file.path(cems.data,"tz_facility_map.png"),plot=myMap.grid)
+ggsave(file.path(path.facility.diagnostics,"tz_facility_map.png"),plot=myMap.grid)
 
 #############################
 ## For each facility, find the region tz.map.sf that contains it
 ############################
 facility.geodata.sf %>%
-  mutate(
-    tz.id = as.integer(st_within(x=.,y=tz.map.sf, sparse=TRUE))
-  ) %>%
-  mutate(
-    tz.name = tz.map.sf$TZID[tz.id]
-  ) %>%
-  mutate(
-    tz.name = as.character(tz.name)
-  )-> facility.geodata.with.tz
+  st_join(tz.map.sf) %>%
+  rename(tz.name = TZID) -> facility.geodata.with.tz
+
 
 ##Manual overrides
 facility.geodata.with.tz %>%
   mutate(
-    tz.name = if_else(state.abriv == "PR", "America/Puerto_Rico", tz.name),
-    tz.id = if_else(state.abriv == "PR",0,tz.id)
+    tz.name = if_else(state.abriv == "PR", "America/Puerto_Rico", tz.name)
   ) -> facility.geodata.with.tz
 
 
-
-
-
-#We have some plants close to boundaries that don't return time zone information.
-#We'll look them up using Google Time Zone API.
-#I want to be a good citizen though. So we're going to save all 
-#Time zone info I download from Google
-
-#Create a list of plants with no time zone info
+writeLines("Plants with no time zone information")
 facility.geodata.with.tz %>% 
-  filter(is.na(tz.name)) -> no.tz.info
+  filter(is.na(tz.name))
 
 
-
-#Load previous plant to time zone mappings if they exist
-overrides.path = file.path(cems.data,"intermediate","facility_data","CEMS_facility_time_zone_overrides.rds")
-if(file.exists(overrides.path)) {
-  read_rds(overrides.path) %>%
-    st_set_geometry(NULL) -> overrides
-  
-  #Join this information into no.tz.info
-  no.tz.info %>% 
-    full_join(overrides, by="orispl.code", suffix=c("",".1") ) %>%
-    mutate(
-      tz.name = ifelse(is.na(tz.name),tz.name.1,tz.name)
-    ) %>%
-    select(-ends_with(".1")) -> no.tz.info
-}
-
-
-#Define a function which takes a vecor of geometeries and returns a vector of 
-#Time zones
-getGeodata <- function(points) {
-  DEBUG = FALSE
-  
-  result = NULL     #Storage for the result vector
-  sleep.time = 5    #How many seconds to sleep between requests
-  
-  #LEt the user know what is happening
-  n.rows = length(points)
-  print(paste("Estimated time",n.rows*sleep.time,"seconds"))
-  
-  #Loop through the vector of geometries
-  counter = 0
-  for(p in points) {
-    counter=counter+1
-    if(DEBUG) {
-      print(counter)
-    }
-    
-    long = p[[1]]
-    lat = p[[2]]
-    
-    #Check that we have valid geodata
-    if(is.na(long) | is.na(lat)) {
-      tz = NA  
-    } else {
-      #If we do, construct a URL and try to download info
-      #Construct the API call
-      url = paste0("https://maps.googleapis.com/maps/api/timezone/xml?location=", lat,",",long,"&timestamp=0")
-      tryCatch({
-        if(DEBUG) {
-          xmlText = paste0("<time_zone_id>",intToUtf8(sample(65:90,5)),"</time_zone_id>")
-        } else {
-          #Be nice to the API. Sleep
-          Sys.sleep(sleep.time)
-          con <- curl(url,"r")
-          xmlText <- paste(readLines(con), collapse='')
-        }
-      }, warning = function(w) {
-        print(url)
-        print(w)
-      }, error = function(w) {
-        print(url)
-        print(w)
-        stop("Halting execuition")
-      }, finally = {
-        #Close the connection regardless
-        if(DEBUG == FALSE) {
-          close(con)
-        }
-      })
-    
-      #You get an XML file back. Look for the <time_zone_id> tag contents
-      match = str_match(xmlText,"<time_zone_id>([^<]+)</time_zone_id>")
-      #We should get a 2x1 vector. We want the second value
-      if(length(match) == 2) {
-        tz = match[[2]]
-      } else {
-        tz = NA
-      }
-    }
-    #Append the result to a vector
-    result = c(result,tz)
-  }
-  if(DEBUG) {
-    print(result)
-  }
-  return(result)
-}
-
-
-#Save all time zone overrides
-no.tz.info %>%
-  filter(is.na(tz.name)) %>%
-  mutate(
-    tz.name = getGeodata(.$geometry)
-  ) %>%
-  ungroup() -> google.tz.info
-
-no.tz.info %>%
-  filter(is.na(tz.name)==FALSE) %>%
-  rbind(google.tz.info) -> no.tz.info
-
-write_rds(no.tz.info,overrides.path)
-
-no.tz.info %>%
-  select(orispl.code, tz.name) %>%
-  st_set_geometry(NULL) -> tz.update
-
-
-
-#Join in the new time zone information where the old values were NA
+##Update time zone information manually
 facility.geodata.with.tz %>%
-  left_join( tz.update, by="orispl.code", suffix=c("",".1") ) %>%
-  mutate(
-    tz.name = ifelse(is.na(tz.name), tz.name.1, tz.name)
-  ) %>%
-  select(-ends_with(".1")) -> facility.geodata.with.tz
+  mutate(tz.name = case_when(
+    orispl.code == 880073 ~ "America/New_York",
+    TRUE ~ tz.name
+  )) -> facility.geodate.with.tz
+
+
+
+
+
 
 
 
 #Save the results without the geometry
 #We'll put geometry in the master facility data file
-facility.geodata.with.tz %>%
-  st_set_geometry(NULL) %>%
-  write_rds(file.path(cems.data,"intermediate","facility_data","CEMS_Facility_time_zones.rds"), 
-          compress="bz2"
-  ) %>%
-  rename_all(.funs=list(~str_replace_all(.,r"{[\.]}","_"))) %>%
-  write_dta(file.path(cems.data,"intermediate","facility_data","CEMS_Facility_time_zones.dta"))
+if("rds" %in% project.local.config$output$formats) {
+  facility.geodata.with.tz %>%
+    st_drop_geometry() %>%
+    write_rds(file.path(path.facility.intermediate,"CEMS_Facility_time_zones.rds"), 
+              compress="bz2"
+    )
+}
+
+if("dta" %in% project.local.config$output$formats) {
+  facility.geodata.with.tz %>%
+    st_drop_geometry() %>%
+    rename_all(.funs=list(~str_replace_all(.,r"{[\.]}","_"))) %>%
+    write_dta(file.path(path.facility.intermediate,"CEMS_Facility_time_zones.dta"))
+}
+  
 
 
 
@@ -365,13 +271,9 @@ rm(list=c("facility.bad.geodata",
           "facility.coltypes",
           "facility.geodata",
           "facility.geodata.sf",
-          "google.tz.info",
           "myMap.grid",
-          "no.tz.info",
-          "overrides",
           "planar.crs",
-          "tz.map.sf",
-          "tz.update"))
+          "tz.map.sf"))
 
 ###############################################
 ###############################################
@@ -418,7 +320,7 @@ for(program in program.list) {
   facility.copy %>%
     #Starting in version 0.6 dplyr allows indirect naming of variables
     mutate(
-      !!paste0("air.program.",program) := str_detect(epa.air.programs,program)
+      !!str_c("air.program.",program) := str_detect(epa.air.programs,program)
     ) -> facility.copy
 }
 facility.copy %>%
@@ -477,7 +379,7 @@ facility.geodata.with.tz %>%
   select(tz.name) %>%
   st_drop_geometry() %>%
   distinct(tz.name) %>%
-  na.omit() %>%
+  drop_na() %>%
   pull(tz.name) -> tz.name.list
 
 facility %>%
@@ -533,24 +435,23 @@ facility %>%
 #############################
 ## Write ouptut file
 #############################
-if(!dir.exists(file.path(cems.data,"out",version.date))) {
-  dir.create(file.path(cems.data,"out",version.date))
-}
-for(f in c( file.path(cems.data,"out",version.date,"facility_data") ) ) {
-  if(!dir.exists(f)) dir.create(f)
-  dir.create(file.path(f,"rds"))
-  dir.create(file.path(f,"stata"))
+if("rds" %in% project.local.config$output$formats) {
+  dir.create(file.path(path.facility.out,"rds"))
+  facility %>%
+    write_rds(file.path(path.facility.out,"rds","CEMS_Facility_Attributes.rds.bz2"), 
+              compress="bz2")
 }
 
-facility %>%
-  write_rds(file.path(cems.data,"out",version.date,"facility_data","rds","CEMS_Facility_Attributes.rds.bz2"), 
-            compress="bz2")
+if("dta" %in% project.local.config$output$formats) {
+  dir.create(file.path(path.facility.out,"stata"))
+  
+  facility %>%
+    select(-geometry) %>% 
+    rename_all(.funs=list( ~ str_replace_all(.,"[\\.\\s]", "_"))) %>%
+    mutate_if(is_character, .funs=list(~str_sub(.,1,250))) %>%
+    write_dta(file.path(path.facility.out,"stata","CEMS_Facility_Attributes.dta"))
+}
 
-facility %>%
-  select(-geometry) %>% 
-  rename_all(.funs=list( ~ str_replace_all(.,"[\\.\\s]", "_"))) %>%
-  mutate_if(is_character, .funs=list(~str_sub(.,1,250))) %>%
-  write_dta(file.path(cems.data,"out",version.date,"facility_data","stata","CEMS_Facility_Attributes.dta"))
 
 
   

@@ -1,0 +1,5 @@
+output:
+  path: I:\Personal Files\archs\GoogleDrive\Data\Energy\Electricity\USElecData
+  formats:
+    - rds
+    - dta
