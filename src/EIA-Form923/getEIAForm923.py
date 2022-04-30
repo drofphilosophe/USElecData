@@ -8,22 +8,51 @@ import io
 import os
 import zipfile
 import shutil
-import datetime
+import datetime as dt
 import pytz
+import yaml
 
-#Define some parameters
-startYear = 1999 #The program doesn't respect startYear. It just won't download files it already has
-endYear = datetime.date.today().year
-baseURL = "http://www.eia.gov/electricity/data/eia923/xls"
-rootFolder = r"I:\Personal Files\archs\GoogleDrive\Data\Energy\Electricity\EIA\Form EIA-923\data\source"
+#########################
+## Load and register the configuration
+#########################
+#Determine the path to this script
+scriptPath, _ = os.path.split(os.path.realpath(__file__))
+projectRoot = os.path.join(scriptPath,"..","..")
 
-##################
-## You shouldn't need to change anything below this line
-##################
+#Load the config.yaml and config_local.yaml configuration Files
+with open(os.path.join(projectRoot,"config.yaml")) as yamlin :
+    projectConfig = yaml.safe_load(yamlin)
+
+with open(os.path.join(projectRoot,"config_local.yaml")) as yamlin :
+    projectLocalConfig = yaml.safe_load(yamlin)
+
+outputRoot = projectLocalConfig["output"]["path"]
+outPathBase = os.path.join(outputRoot,"data","source","EIA-Form923")
+
+#Construct the directory tree if it doesn't already exist
+if os.path.isdir(outputRoot) :
+    #Check that the data directiry exists
+    if not os.path.isdir(outPathBase) :
+        os.makedirs(outPathBase)
+else :
+    raise FileNotFoundError(
+    "The data output defined path in the configuration file does not exist\n" +
+    "Expecing path: " + outputRoot
+    )
 
 
+#Path to EPA hourly CEMS data. Subfolders should be years
+baseURL = projectConfig["sources"]["EIA-Form923"]["URL"]
 
+#Years to process
+startYear = int(projectConfig["sources"]["EIA-Form923"]["start-year"])
+endYear = projectConfig["sources"]["EIA-Form923"]["end-year"]
+if endYear is None or endYear.strip() == "" :
+    endYear = dt.date.today().year
+else :
+    endYear = int(endYear)
 
+    
 ###########################
 ## downloadFile - Downloads an Excel File and saves to specified folder
 ###########################
@@ -32,23 +61,24 @@ def downloadExcel(url, dest) :
         print("File exists. Skipping.\n")
     else :
         print("\tI ask server for: " + url)
-        response = urllib.request.urlopen(url)
-        print("\tServer responds: " + response.headers['content-type'] )
+        with io.BytesIO() as buf :
+            with urllib.request.urlopen(url) as response :
+                print("\tServer responds: " + response.headers['content-type'] )
 
-        if response.headers['content-type'] == "application/vnd.ms-excel" :
-            #Save Excel file
-            print("\tSaving Excel File")
-
-            #Dump the serer response to an appropriately-named binary file
-            XLFile = open(dest, 'wb')
-            XLFile.write(response.read())
-            XLFile.close()
-
-            #Clean up
-            response.close()
-
-        else :
-            print("No suitable file type found.")
+                if response.headers['content-type'] == "application/vnd.ms-excel" :
+                    #Write the excel file to a buffer
+                    print("\tSaving Excel File")
+                    buf.write(response.read())
+                    
+            #The buffer will be at position zero if we didn't get an Excel file         
+            if buf.tell() > 0 :
+                #Rewind the buffer
+                buf.seek(0)
+                #Dump the serer response to an appropriately-named binary file
+                with open(dest,"wb") as XLFile :
+                    XLFile.write(buf.read())
+            else :
+                print("No suitable file type found.")
 
 #####################################
 # downloadAndExtract - Downloads a ZIP archive and extracts it to the specified folder
@@ -63,37 +93,26 @@ def downloadAndExtract(url, dest) : #Download and extract ZIP archive
         print("\tCreating Folder")
         os.mkdir(dest)
 
-        #Request the URL
-        response = urllib.request.urlopen(url)
+        with io.BytesIO() as bufout :
+            with io.BytesIO() as bufin :
+                print("\tDownloading",url)
+                with urllib.request.urlopen(url) as response :
+                    print("\tExtracting data from archive...")
+                    bufin.write(response.read())
+                bufin.seek(0)
 
-        print("\tExtracting data from archive...")
-        #Convert the response to a file-like object
-        zipFile = io.BytesIO()
-        zipFile.write(response.read())
+                with zipfile.ZipFile(bufin) as archive :
+                    #Get list of zipFile contents
+                    archiveNameList = archive.namelist()
+                    #Read each file from the archive and write it to the destination folder
+                    for fileName in archiveNameList :
+                        with archive.open(fileName) as zipin :
+                            bufout.write(zipin.read())
 
-        #Convert zipFile to a ZipFile object
-        archive = zipfile.ZipFile(zipFile, 'r')
-
-        #Get list of zipFile contents
-        archiveNameList = archive.namelist()
-
-        #Extract all of the files in archive
-        for fileName in archiveNameList :
-            archive.extract(fileName, path=dest)
-
-        #Some archives contain a subfolder with the year as the name.
-        #Move everything out of that subfolder and delete it
-        #if os.path.exists(destFolder + "\\" + str(yr)) :
-        #    print("\tUpleveling directory " + str(yr))
-        #    moveList = os.listdir(destFolder + "\\" + str(yr))
-        #    for moveFile in moveList :
-        #        os.rename(destFolder + "\\" + str(yr) + "\\" + moveFile, destFolder + "\\" + moveFile)
-        #    os.rmdir(destFolder + "\\" + str(yr))
-
-        #Clean up
-        archive.close()
-        zipFile.close()
-        response.close()
+                        bufout.seek(0)
+                        with open(os.path.join(dest,fileName),"wb") as fout :
+                            fout.write(bufout.read())
+                
 
 ########################################################
 ##MAIN PROGRAM
@@ -101,9 +120,9 @@ def downloadAndExtract(url, dest) : #Download and extract ZIP archive
 #define the list of years to download
 
 #Download all non-utility
-downloadAndExtract(baseURL + "/f906nonutil1989.zip", rootFolder + "\\1989_nonutility")
-downloadAndExtract(baseURL + "/f906nonutil1999.zip", rootFolder + "\\1999_nonutility")
-downloadAndExtract(baseURL + "/f906nonutil2000.zip", rootFolder + "\\2000_nonutility")
+downloadAndExtract(baseURL + "/archive/xls/f906nonutil1989.zip", outPathBase + "\\1989_nonutility")
+downloadAndExtract(baseURL + "/archive/xls/f906nonutil1999.zip", outPathBase + "\\1999_nonutility")
+downloadAndExtract(baseURL + "/archive/xls/f906nonutil2000.zip", outPathBase + "\\2000_nonutility")
 
 #Download Utility 1970-2000
 ##yearList = range(1970,2001)
@@ -114,11 +133,11 @@ downloadAndExtract(baseURL + "/f906nonutil2000.zip", rootFolder + "\\2000_nonuti
 ##    else :
 ##        downloadExcel(baseURL + "/utility/f759" + str(yr) + "mu.xls", rootFolder + "\\" + str(yr) + "um.xls")
 ##
-###2001 - 2007 EIA-920
-##yearList = range(2001, 2008)
-##for yr in yearList :
-##    print("Processing " + str(yr) + "\n")
-##    downloadAndExtract(baseURL + "/f906920_" + str(yr) + ".zip", rootFolder + "\\" + str(yr))
+#2001 - 2007 EIA-920
+yearList = range(2001, 2008)
+for yr in yearList :
+    print("Processing " + str(yr) + "\n")
+    downloadAndExtract(baseURL + "/archive/xls/f906920_" + str(yr) + ".zip", outPathBase + "\\" + str(yr))
 
 #2008+ EIA-923
 #Since these represent still-being released data, handling is more complex
@@ -128,7 +147,7 @@ downloadAndExtract(baseURL + "/f906nonutil2000.zip", rootFolder + "\\2000_nonuti
 yearList = range(2008,endYear+1)
 for yr in yearList :
     print("Processing " + str(yr) + "\n")
-    YearPath = os.path.join(rootFolder,str(yr))
+    YearPath = os.path.join(outPathBase,str(yr))
     if not os.path.isdir(YearPath) :
         os.mkdir(YearPath)
 
@@ -138,7 +157,7 @@ for yr in yearList :
     DirList = [f.name for f in os.scandir(YearPath) if f.is_dir()]
     if len(DirList) > 0 :
         MostRecent = os.path.join(YearPath,max(DirList))
-        LastModifiedTime = datetime.datetime.fromtimestamp(os.stat(MostRecent).st_ctime)
+        LastModifiedTime = dt.datetime.fromtimestamp(os.stat(MostRecent).st_ctime)
         print("Local file downloaded at",LastModifiedTime)
         #Construct the HTTP header. Include "If-Modified-Since" with the last modified date
         hdr = {
@@ -146,11 +165,11 @@ for yr in yearList :
         }
     else :
         #We don't have a subfolder, so we want to download the file regardless
-        hdr = {'If-Modified-Since' : datetime.datetime(yr,1,1).astimezone(pytz.utc).strftime("%a, %d %b %Y %H:%M:%S GMT") }
+        hdr = {'If-Modified-Since' : dt.datetime(yr,1,1).astimezone(pytz.utc).strftime("%a, %d %b %Y %H:%M:%S GMT") }
 
     #Construct an HTTP request
-    URLCurrent = "https://www.eia.gov/electricity/data/eia923/xls/f923_{yr:04d}.zip".format(yr=yr)
-    URLArchive = "https://www.eia.gov/electricity/data/eia923/archive/xls/f923_{yr:04d}.zip".format(yr=yr)
+    URLCurrent = baseURL + "/xls/f923_{yr:04d}.zip".format(yr=yr)
+    URLArchive = baseURL + "/archive/xls/f923_{yr:04d}.zip".format(yr=yr)
 
     with io.BytesIO() as buf :
         NewFile = False
@@ -168,12 +187,12 @@ for yr in yearList :
                         print("File on server is newer. Downloading")
                         #Get the last modified date, Check to see if its in the header
                         if 'Last-Modified' in resp.info() :
-                            LastModifiedTime = datetime.datetime.strptime(resp.info()['Last-Modified'],"%a, %d %b %Y %H:%M:%S %Z")
+                            LastModifiedTime = dt.datetime.strptime(resp.info()['Last-Modified'],"%a, %d %b %Y %H:%M:%S %Z")
                             print("Server Version Date:", LastModifiedTime)
                         else :
                             #If not in the header, use today
                             print("Server did not provide a version date. Using today")
-                            LastModifiedTime = datetime.datetime.now()
+                            LastModifiedTime = dt.datetime.now()
 
                         buf.write(resp.read())
                         NewFile = True
@@ -193,10 +212,7 @@ for yr in yearList :
         if NewFile :
             print("Extracting")
             #Create an appropriately-named directory
-            FileVersion = LastModifiedTime.strftime("%Y%m%d")
-            OutPath = os.path.join(YearPath,FileVersion)
-            os.mkdir(OutPath)
             buf.seek(0)
             with zipfile.ZipFile(buf,"r") as archin :
                 for f in archin.namelist() :
-                    archin.extract(f,OutPath)
+                    archin.extract(f,YearPath)

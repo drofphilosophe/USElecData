@@ -11,3 +11,7 @@ sources:
     URL-hourly: ftp://newftp.epa.gov/DMDnLoad/emissions/hourly/monthly
     start-year: 1995
     end-year:
+  EIA-Form923:
+    URL: https://www.eia.gov/electricity/data/eia923
+    start-year: 1999
+    end-year:
