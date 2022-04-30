@@ -44,11 +44,13 @@ path.monthly.out <- file.path(path.project,"data","out","EPA-CEMS","monthly")
 path.daily.out <- file.path(path.project,"data","out","EPA-CEMS","daily")
 
 for(f in c(path.hourly.out,path.monthly.out,path.daily.out)) {
-  if(!dir.exists(f)) {
-    dir.create(f,recursive=TRUE)
-    dir.create(file.path(f,"rds"))
-    dir.create(file.path(f,"stata"))
-  }
+  dir.create(f,recursive=TRUE,showWarnings = FALSE)
+  
+  if("rds" %in% project.local.config$output$formats) 
+      dir.create(file.path(f,"rds"),showWarnings = FALSE)
+  
+  if("dta" %in% project.local.config$output$formats)
+      dir.create(file.path(f,"stata"),showWarnings = FALSE)
 }
 
 
@@ -65,7 +67,7 @@ for(f in folder.list) {
   
   tibble(
     Name = file.list,
-    mtile = ymd_hms(file.times)
+    mtime = ymd_hms(file.times)
   ) %>%
     mutate(
       Year = as.integer(str_sub(Name,1,4)),
@@ -83,7 +85,7 @@ file.times = file.info(file.path(path.hourly.out,"rds",file.list))$mtime
 
 tibble(
   Name = file.list,
-  mtile = ymd_hms(file.times)
+  mtime = ymd_hms(file.times)
 ) %>%
   mutate(
     Year = as.integer(str_sub(Name,6,9)),
@@ -233,7 +235,8 @@ for(yr in year(date.start):year(date.end) ) {
       summarize(mtime = max(mtime)) %>%
       pull(mtime) -> input.max.time
     
-    if(is.nan(input.max.time)) {
+    #If there are no responsive files, input.max.time will be -Inf
+    if(input.max.time == -Inf) {
       writeLines(str_c("No nput files for ",yr,"Q",q,". Skipping."))
       next
     }
@@ -244,7 +247,9 @@ for(yr in year(date.start):year(date.end) ) {
       pull(mtime) -> output.min.time
     
     #Check to see if we have an output file
-    if(!is.nan(input.max.time)) {
+    #output.min.time will be Inf if there are no responsive files
+    #We've made it this far, so if no output file exists, we need to make one
+    if(output.min.time < Inf) {
       #Compare the largest input file time to the smallest output file time
       if(input.max.time < output.min.time) {
         writeLines(str_c("Input files for ",yr,"Q",q," are all older than the output file."))
@@ -628,9 +633,9 @@ for(yr in year(date.start):year(date.end) ) {
           operational.time = sum(operational.time),
           SO2.mass.lbs = sum(SO2.mass.lbs),
           NOx.mass.lbs = sum(NOx.mass.lbs),
-          CO2.mass.tons = sum(CO2.mass.tons)
-        ) %>%
-        ungroup() -> this.daily
+          CO2.mass.tons = sum(CO2.mass.tons),
+          .groups="drop"
+        ) -> this.daily
       
       if(exists("this.daily")) {
         if("rds" %in% project.local.config$output$formats) {
@@ -667,9 +672,9 @@ for(yr in year(date.start):year(date.end) ) {
           operational.time = sum(operational.time),
           SO2.mass.lbs = sum(SO2.mass.lbs),
           NOx.mass.lbs = sum(NOx.mass.lbs),
-          CO2.mass.tons = sum(CO2.mass.tons)
-        ) %>%
-        ungroup() -> this.monthly
+          CO2.mass.tons = sum(CO2.mass.tons),
+          .groups="drop"
+        ) -> this.monthly
       
       if(exists("this.monthly")) {
         if("rds" %in% project.local.config$output$formats) {
