@@ -707,6 +707,10 @@ for(yr in year(date.start):year(date.end) ) {
 ## Combine all monthly data into a single file
 ###################################
 file.list = list.files(file.path(path.monthly.out,"rds"),pattern=".gz")
+#Remove the "all months" file from the list of files to combine
+#Otherwise, we'd get an ouroboros after multiple runs 
+file.list = setdiff(file.list,"CEMS_All_months.rds.gz")
+
 all.months <- tibble()
 for(f in file.list) {
   read_rds(file.path(path.monthly.out,"rds",f)) %>%
