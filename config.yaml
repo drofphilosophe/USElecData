@@ -15,3 +15,8 @@ sources:
     URL: https://www.eia.gov/electricity/data/eia923
     start-year: 1999
     end-year:
+  EIA-Form860:
+    URL: http://www.eia.gov/electricity/data/eia860
+    start-year: 1990
+    end-year:
+      

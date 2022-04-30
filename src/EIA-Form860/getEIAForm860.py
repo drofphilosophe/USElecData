@@ -7,13 +7,50 @@ import io
 import os
 import zipfile
 import shutil
+import yaml
+import datetime as dt
 
-#Define some parameters
-startYear = 1990
-endYear = 2021
-baseURL = "http://www.eia.gov/electricity/data/eia860"
-googleDrive = os.path.join("G:\\","My Drive")
-rootFolder = os.path.join(googleDrive,"Data", "Energy", "Electricity", "EIA","Form EIA-860","data","source")
+#########################
+## Load and register the configuration
+#########################
+#Determine the path to this script
+scriptPath, _ = os.path.split(os.path.realpath(__file__))
+projectRoot = os.path.join(scriptPath,"..","..")
+
+#Load the config.yaml and config_local.yaml configuration Files
+with open(os.path.join(projectRoot,"config.yaml")) as yamlin :
+    projectConfig = yaml.safe_load(yamlin)
+
+with open(os.path.join(projectRoot,"config_local.yaml")) as yamlin :
+    projectLocalConfig = yaml.safe_load(yamlin)
+
+outputRoot = projectLocalConfig["output"]["path"]
+outPathBase = os.path.join(outputRoot,"data","source","EIA-Form860")
+
+#Construct the directory tree if it doesn't already exist
+if os.path.isdir(outputRoot) :
+    #Check that the data directiry exists
+    if not os.path.isdir(outPathBase) :
+        os.makedirs(outPathBase)
+else :
+    raise FileNotFoundError(
+    "The data output defined path in the configuration file does not exist\n" +
+    "Expecing path: " + outputRoot
+    )
+
+
+#Path to EPA hourly CEMS data. Subfolders should be years
+baseURL = projectConfig["sources"]["EIA-Form860"]["URL"]
+
+#Years to process
+startYear = int(projectConfig["sources"]["EIA-Form860"]["start-year"])
+endYear = projectConfig["sources"]["EIA-Form860"]["end-year"]
+if endYear is None or endYear.strip() == "" :
+    endYear = dt.date.today().year
+else :
+    endYear = int(endYear)
+
+    
 
 ##################
 ## You shouldn't need to change anything below this line
@@ -58,14 +95,7 @@ def downloadAndExtract(url, dest, ketchamate=False) : #Download and extract ZIP 
         for fileName in archiveNameList :
             archive.extract(fileName, path=dest)
 
-        #Some archives contain a subfolder with the year as the name.
-        #Move everything out of that subfolder and delete it
-        #if os.path.exists(destFolder + "\\" + str(yr)) :
-        #    print("\tUpleveling directory " + str(yr))
-        #    moveList = os.listdir(destFolder + "\\" + str(yr))
-        #    for moveFile in moveList :
-        #        os.rename(destFolder + "\\" + str(yr) + "\\" + moveFile, destFolder + "\\" + moveFile)
-        #    os.rmdir(destFolder + "\\" + str(yr))
+
 
         #Clean up
         archive.close()
@@ -80,7 +110,7 @@ yearList = range(startYear, endYear+1)
 
 for yr in yearList :
     print("Year: " + str(yr))
-    destFolder = rootFolder + '\\' + str(yr)
+    destFolder = outPathBase + '\\' + str(yr)
 
 
     #Let us know what is happening
@@ -88,9 +118,12 @@ for yr in yearList :
 
     #There are three different formats of files. Treat them differently
     if yr < 1998 :
-        downloadAndExtract(baseURL + "/eia860a/eia860a" + str(yr) + ".zip", rootFolder + "\\" + str(yr) + "a")
+        downloadAndExtract(baseURL + "/eia860a/eia860a" + str(yr) + ".zip", outPathBase + "\\" + str(yr) + "a")
     elif yr < 2001 :
-        downloadAndExtract(baseURL + "/eia860a/eia860a" + str(yr) + ".zip", rootFolder + "\\" + str(yr) + "a")
-        downloadAndExtract(baseURL + "/eia860b/eia860b" + str(yr) + ".zip", rootFolder + "\\" + str(yr) + "b")
+        downloadAndExtract(baseURL + "/eia860a/eia860a" + str(yr) + ".zip", outPathBase + "\\" + str(yr) + "a")
+        downloadAndExtract(baseURL + "/eia860b/eia860b" + str(yr) + ".zip", outPathBase + "\\" + str(yr) + "b")
     else :
-        downloadAndExtract(baseURL + "/xls/eia860" + str(yr) + ".zip", rootFolder + "\\" + str(yr))
+        try :
+            downloadAndExtract(baseURL + "/archive/xls/eia860" + str(yr) + ".zip", outPathBase + "\\" + str(yr))
+        except zipfile.BadZipFile as e :
+            downloadAndExtract(baseURL + "/xls/eia860" + str(yr) + ".zip", outPathBase + "\\" + str(yr))
