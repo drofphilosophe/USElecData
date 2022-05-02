@@ -68,6 +68,9 @@ else :
 for yr in range(startYear,endYear+1) :
     outPath = os.path.join(outPathBase,str(yr))
 
+    #Compile a regex that will match valid CEMS filenames
+    fnPattern = re.compile(fr"{yr}[A-Za-z][A-Za-z][0-1][0-9]\.zip")
+
     #Check to see if the output folder exist
     if not os.path.isdir(outPath) :
         os.mkdir(outPath)
@@ -77,17 +80,23 @@ for yr in range(startYear,endYear+1) :
         #Loop through each and extract the last modified time and filename
         fileDict = {}
         for line in fileList.readlines() :
+            
             DateText = line.decode('utf-8')[39:51]
             FileName = line.decode('utf-8')[52:65]
-            #Add either time (for previous years) or year (cirrent year) to the DateText
-            if ":" in DateText :
-                DateText = DateText[0:7] + str(yr) + DateText[6:13]
+
+            #Check that the file name matches the pattern of CEMS file names
+            if fnPattern.search(FileName) :
+                #Add either time (for previous years) or year (current year) to the DateText
+                if ":" in DateText :
+                    DateText = DateText[0:7] + str(yr) + DateText[6:13]
+                else :
+                    DateText = DateText + " 00:00"
+
+                FileDate = dt.datetime.strptime(DateText,"%b %d %Y %H:%M")
+
+                fileDict.update({FileName.strip() : FileDate})
             else :
-                DateText = DateText + " 00:00"
-
-            FileDate = dt.datetime.strptime(DateText,"%b %d %Y %H:%M")
-
-            fileDict.update({FileName.strip() : FileDate})
+                print("Skipping",FileName,"as a non-conforming file name pattern")
 
     #Get a dictionary of the files and their corrisponding modification times in the local directory
     localFileDict = {
