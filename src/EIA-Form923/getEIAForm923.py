@@ -57,7 +57,10 @@ else :
 ## downloadFile - Downloads an Excel File and saves to specified folder
 ###########################
 def downloadExcel(url, dest) :
-    if os.path.exists(dest) :
+    #Assume that we've already downloaded data if the destination folder
+    #exists AND there is at least one file in it. And short circuits, so
+    #this shouldn't generate exceptions if dest doesn't exist
+    if os.path.exists(dest) and len(os.listdir(dest)) > 0:
         print("File exists. Skipping.\n")
     else :
         print("\tI ask server for: " + url)
@@ -84,8 +87,10 @@ def downloadExcel(url, dest) :
 # downloadAndExtract - Downloads a ZIP archive and extracts it to the specified folder
 #####################################
 def downloadAndExtract(url, dest) : #Download and extract ZIP archive
-    #Check if the target folder exists. If so, skip this download
-    if os.path.exists(dest) :
+    #Assume that we've already downloaded data if the destination folder
+    #exists AND there is at least one file in it. And short circuits, so
+    #this shouldn't generate exceptions if dest doesn't exist
+    if os.path.exists(dest) and len(os.listdir(dest)) > 0:
          print("Folder already exists. Skipping.\n")
     else :
 
