@@ -11,9 +11,9 @@ config_local.yaml
 *.dta
 *.xls
 *.xlsx
-data/source
-data/intermediate
-data/out
+data/source/
+data/intermediate/
+data/out/
 
 
 ############################
