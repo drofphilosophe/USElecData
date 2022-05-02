@@ -22,7 +22,7 @@ This is a repository of code to download, compile and clean high-frequency elect
  
  # Using this package
  
- Code in this package will download and clean uop data from many sources. After pulling the repo, you should create a local configuration file by editing `./config_local_template.yaml` to point to the local path where you will store source, intermediate, and output data. Save this file as `./config_local.yaml`. You should then run each of the Python/R scripts in the order described in the Markdown file in each subfolder of the `src` directory. The `src` folders should be loaded an cleaned in the following order:
+ Code in this package will download and clean uop data from many sources. After pulling the repo, you should create a local configuration file by editing `./config_local_template.yaml` to point to the local path where you will store source, intermediate, and output data. Save this file as `./config_local.yaml`. **DO NOT MAKE YOUR DATA PATH A SUBDIRECTORY OF YOUR LOCAL CODE REPOSITORY**. You should then run each of the Python/R scripts in the order described in the Markdown file in each subfolder of the `src` directory. The `src` folders should be loaded an cleaned in the following order:
  1. `tz-info`
  2. `EIA-Form860`
  3. `EIA-Form923`
