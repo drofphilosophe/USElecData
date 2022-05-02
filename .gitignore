@@ -4,6 +4,18 @@
 #Local congifuration yaml file
 config_local.yaml
 
+#Data files
+*.rds
+*.rds.gz
+*.rds.bz2
+*.dta
+*.xls
+*.xlsx
+data/source
+data/intermediate
+data/out
+
+
 ############################
 ## R files
 ############################
@@ -26,14 +38,6 @@ Actions
 Security
 Insights
 gitignore/R.gitignore
-@bdougie
-bdougie Merge pull request #3792 from jl5000/patch-1
-…
-Latest commit cfdda2a on Dec 10, 2021
- History
- 21 contributors
-@Ironholds@jimhester@katrinleinweber@zy26@tjgrilley@raybuhr@pat-s@MichaelChirico@jrnold@jl5000@jangorecki@izuzak
-49 lines (35 sloc)  671 Bytes
 
 # History files
 .Rhistory
@@ -84,19 +88,7 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
-© 2022 GitHub, Inc.
-Terms
-Privacy
-Security
-Status
-Docs
-Contact GitHub
-Pricing
-API
-Training
-Blog
-About
-Loading complete
+
 
 
 ############################
