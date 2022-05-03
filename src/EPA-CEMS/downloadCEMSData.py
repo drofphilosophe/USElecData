@@ -14,6 +14,8 @@ import re
 import datetime as dt
 import io
 import yaml
+import hashlib
+import csv
 
 #########################
 ## Load and register the configuration
@@ -59,26 +61,21 @@ else :
 
 
 
-
-
-
-###################################
-## Download CEMS data
-###################################
-for yr in range(startYear,endYear+1) :
-    outPath = os.path.join(outPathBase,str(yr))
-
+#################
+## getRemoteFileList
+##
+## Get a list of remote files from the FTP server
+#################
+def getRemoteFileList(URL) :
     #Compile a regex that will match valid CEMS filenames
     fnPattern = re.compile(fr"{yr}[A-Za-z][A-Za-z][0-1][0-9]\.zip")
 
-    #Check to see if the output folder exist
-    if not os.path.isdir(outPath) :
-        os.mkdir(outPath)
+    #Create a dictionary in which to return results
+    remoteFileDict = {}
 
     #Get a listing of all the files on the server in this folder
-    with urllib.request.urlopen(baseURL + "/" + str(yr)) as fileList :
+    with urllib.request.urlopen(URL) as fileList :
         #Loop through each and extract the last modified time and filename
-        fileDict = {}
         for line in fileList.readlines() :
             
             DateText = line.decode('utf-8')[39:51]
@@ -94,60 +91,90 @@ for yr in range(startYear,endYear+1) :
 
                 FileDate = dt.datetime.strptime(DateText,"%b %d %Y %H:%M")
 
-                fileDict.update({FileName.strip() : FileDate})
+                remoteFileDict.update({FileName.strip() : FileDate})
             else :
-                print("Skipping",FileName,"as a non-conforming file name pattern")
+                print("Skipping",FileName,"as a non-conforming file name pattern")    
+    return remoteFileDict
 
-    #Get a dictionary of the files and their corrisponding modification times in the local directory
-    localFileDict = {
-        x : dt.datetime.fromtimestamp(
-            #min(
-            os.path.getmtime(os.path.join(outPath,x))
-            #os.path.getctime(os.path.join(outPath,x)))
-            )
-        for x in os.listdir(outPath)
-        if os.path.isfile(os.path.join(outPath,x))
-        }
+##############
+## getLocalFileList
+##
+## Get a dictionary of local files
+###############
+def getLocalFileList(path) :
 
-    #Loop through each of the files on the FTP server
-    for f in fileDict.keys() :
-        print("Processing", f)
-        #Set a flag to download data
-        doIDownload = False
-        #Check to see if we have the file
-        if f in localFileDict :
-            #If so is the one on the server newer?
-            if fileDict[f] > localFileDict[f] :
-                print("\tNew version on server.")
-                print("\t\tLocal Date:",localFileDict[f])
-                print("\t\tRemote Date:",fileDict[f])
-                print("\tDownloading")
-                doIDownload = True
-            else :
-                print("\tLocal copy is newer. No download")
+    if not os.path.isfile(os.path.join(path,"SourceFileLog.csv")) :
+        if len(os.listfiles(path)) > 0 :
+            print("SourceFileLog.csv is not found in the hourly data folder")
+            print("But there are pre-existing files in the hourly data folder")
+            print("This is unexpected and means your source data are out-of-sync")
+            print("You should remove pre-existing files or run rectonSourceFileDB.py to")
+            print("Reconstruct the source file database.")
+            raise FileNotFound("SourceFileLog.csv Not found")
         else :
-            #Local file doesn't exist. Download it
-            print("\tLocal version does not exist. Downloading")
-            doIDownload = True
+            print("This is an initial build of the source data")
+            print("Creating SourceFileLog.csv")
+            localFileDict = {}
+    else :
+        localFileDict = {}
+        with open(os.path.join(path,"SourceFileLog.csv"),"r") as csvin :
+            reader = csv.DictReader(csvin)
 
-        if doIDownload :
-             print("\tDownloading file",f)
-             #Construct the URL to the file
-             URL = baseURL + "/" + str(yr) + "/" + f
+            for row in reader :
+                localFileEntry = {
+                    row['filename'] :
+                    ( row['Year'],
+                      dt.datetime.fromisoformat(row['download_timestamp']),
+                      row['md5hash']
+                      )
+                    }
+                localFileDict.update(localFileEntry)
+            
+        return localFileDict
 
-             #Get the URL data and read it into a buffer
-             with io.BytesIO() as buf :
-                with urllib.request.urlopen(URL) as req :
-                    buf.write(req.read())
-                #rewind the buffer
+#####################
+## processRemoteFile
+#####################
+def processRemoteFile(remoteDB,localDB,outPath,yr,fn) :
+    print("Processing",fn)
+    #A flag to download the file
+    doIDownload = False
+
+    #Default that local file attribtutes will be unchanged
+    newAttribs = localDB[fn]
+
+    #Check to see if the file is in the local database
+    if fn in localDB :
+        #Is the remote copy newer?
+        if remoteDB[fn] > localDB[fn][1] :
+            doIDownload = True            
+    else :
+        doIDownload = True
+        
+    if doIDownload :
+        #Download the file if needed
+        URL = baseURL + "/" + str(yr) + "/" + fn
+        with io.BytesIO() as buf :
+            with urllib.request.urlopen(URL) as req :
+                buf.write(req.read())
+                    
+            #rewind the buffer
+            buf.seek(0)
+
+            #Compute the MD5 hash
+            h=hashlib.new('md5')
+            h.update(buf.read())
+            md5 = h.hexdigest()
+
+            #Did the hash change?
+            if md5 == localDB[fn][2] :
+                print("\tFile date changed, but the hash did not. Updating the file date")
+                newAttribs = (yr,remoteDB[fn],md5)
+                
+            else :
+                print("\tNewer file on remote. Updating")
                 buf.seek(0)
-
-                ##Save the downloaded data. We download a zip
-                ##open it and then resave it as a zip. Why
-                ##go through this process? First I want
-                ##to check the file is structured the way I expect
-                ##Second, this verifies the integreity of the zip file.
-
+                
                 #The source file is a zip file. open it in a context handler
                 with zipfile.ZipFile(buf) as zipin :
                     csv_name = os.path.splitext(f)[0] + ".csv"
@@ -158,5 +185,56 @@ for yr in range(startYear,endYear+1) :
                             with zipout.open(csv_name,"w") as fout :
                                 #Flush the buffer to the file
                                 fout.write(fin.read())
-        else :
-            print("We already have an up-to-date version of",f)
+                newAttribs = (yr,remoteDB[fn],md5)
+    else :
+        print("\tLocal file is newer. No update")
+                
+    if fn in localDB :
+        localDB[fn] = newAttribs
+    else :
+        localDB.update({fn : newAttribs})
+        
+            
+def writeLocalFileDB(outPathBase,localDB) :
+    print("Writing SourceFileLog.csv")
+    with open(os.path.join(outPathBase,"SourceFileLog.csv"),"w") as csvout :
+        csvout.write("Year,filename,download_timestamp,md5hash\n")
+        for row in localFileDict.keys() :
+            csvout.write(
+                str(localFileDict[row][0]) + "," +
+                row + "," + 
+                dt.datetime.isoformat(localFileDict[row][1]) + "," +
+                str(localFileDict[row][2]) + "\n"
+            )   
+
+
+
+
+#Get a list of local files from the source file DB
+localFileDict = getLocalFileList(outPathBase)
+
+###################################
+## Download CEMS data
+###################################
+try :
+    for yr in range(startYear,endYear+1) :
+        outPath = os.path.join(outPathBase,str(yr))
+
+        #Check to see if the output folder exist
+        if not os.path.isdir(outPath) :
+            os.mkdir(outPath)
+
+        #Get a list of files for this year from the remote
+        remoteFileDict = getRemoteFileList(baseURL + "/" + str(yr))
+
+        
+        #Loop through each of the files on the FTP server
+        for f in remoteFileDict.keys() :
+            processRemoteFile(remoteFileDict,localFileDict,outPath,yr,f)
+except Exception as e :
+    raise e
+finally :
+    ##Write out SourceFileLog
+    writeLocalFileDB(outPathBase,localFileDict)
+            
+    
