@@ -141,12 +141,19 @@ def processRemoteFile(remoteDB,localDB,outPath,yr,fn) :
     doIDownload = False
 
     #Default that local file attribtutes will be unchanged
-    newAttribs = localDB[fn]
+    attribYear = yr
+    attribTime = None
+    attribMD5 = None
 
     #Check to see if the file is in the local database
     if fn in localDB :
+        #Default that local file attribtutes will be unchanged
+        attribYear = localDB[fn][0]
+        attribTime = localDB[fn][1]
+        attribMD5 = localDB[fn][2]
+        
         #Is the remote copy newer?
-        if remoteDB[fn] > localDB[fn][1] :
+        if remoteDB[fn] > attribTime :
             doIDownload = True            
     else :
         doIDownload = True
@@ -167,9 +174,9 @@ def processRemoteFile(remoteDB,localDB,outPath,yr,fn) :
             md5 = h.hexdigest()
 
             #Did the hash change?
-            if md5 == localDB[fn][2] :
+            if md5 == attribMD5 :
                 print("\tFile date changed, but the hash did not. Updating the file date")
-                newAttribs = (yr,remoteDB[fn],md5)
+                attribTime = remoteDB[fn]
                 
             else :
                 print("\tNewer file on remote. Updating")
@@ -185,11 +192,15 @@ def processRemoteFile(remoteDB,localDB,outPath,yr,fn) :
                             with zipout.open(csv_name,"w") as fout :
                                 #Flush the buffer to the file
                                 fout.write(fin.read())
-                newAttribs = (yr,remoteDB[fn],md5)
+
+                attribTime = remoteDB[fn]
+                attribMD5 = md5
     else :
         print("\tLocal file is newer. No update")
-                
-    if fn in localDB :
+
+    newAttribs = (attribYear,attribTime,attribMD5)
+    
+    if fn in localDB.keys() :
         localDB[fn] = newAttribs
     else :
         localDB.update({fn : newAttribs})
