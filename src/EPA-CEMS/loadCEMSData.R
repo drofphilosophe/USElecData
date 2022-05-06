@@ -59,25 +59,20 @@ for(f in c(path.hourly.out,path.monthly.out,path.daily.out)) {
 #################################
 folder.list <- list.dirs(path.hourly.source, full.names = FALSE, recursive=FALSE)
 
-#Walk each folder in folder list and compile a list of all the files in the folder
-input.file.log <- tibble()
-for(f in folder.list) {
-  file.list = list.files(file.path(path.hourly.source,f),pattern=".zip")
-  file.times = file.info(file.path(path.hourly.source,f,file.list))$mtime
-  
-  tibble(
-    Name = file.list,
-    mtime = ymd_hms(file.times)
-  ) %>%
-    mutate(
-      Year = as.integer(str_sub(Name,1,4)),
-      Month = as.integer(str_sub(Name,7,8)),
-      State = str_sub(Name,5,6),
-      Quarter = ceiling(Month/3)
-    ) %>% 
-    bind_rows(input.file.log) -> input.file.log
-}
-
+#Load the file log and compile a list of source files
+#And their last downloaded times
+read_csv(
+  file.path(path.hourly.source,"SourceFileLog.csv")
+) %>%
+  rename(
+    Name = filename,
+    mtime = download_timestamp
+    ) %>%
+  mutate(
+    Month = as.integer(str_sub(Name,7,8)),
+    State = str_sub(Name,5,6),
+    Quarter = ceiling(Month/3)
+  ) -> input.file.log
 
 #Compile a list of processed hourly files
 file.list = list.files(file.path(path.hourly.out,"rds"),pattern=".gz")
@@ -93,7 +88,20 @@ tibble(
   ) -> output.file.log
 
 
+input.file.log %>%
+  group_by(Year,Quarter) %>%
+  summarize(
+    last.download = max(mtime)
+  ) %>%
+  full_join(output.file.log,by=c("Year","Quarter")) %>%
+  rename(last.update = mtime) %>%
+  replace_na(list(last.download=as_datetime(Inf),last.update=as_datetime(-Inf))) %>%
+  drop_na() %>%
+  filter(last.download > last.update) %>%
+  select(Year,Quarter) -> pending.updates
 
+writeLines("Data to be Updated")
+knitr::kable(pending.updates)
 
 
 
