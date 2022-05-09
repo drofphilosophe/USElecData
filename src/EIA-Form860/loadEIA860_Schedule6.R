@@ -36,6 +36,67 @@ if(is.null(project.config$sources$`EIA-Form860`$`end-year`)) {
 dir.create(path.EIA860.out, recursive = TRUE, showWarning = FALSE)
 
 
+#Detect the starting and ending row of data in the schedule 6 sheets
+#This follows the same approach in every worksheet.
+#Load all of column A. The header rows have some variant of "Utility ID"
+#The table ends at the last row or in the row before we encounter 
+#a value beginning with "NOTE". Return these bounds as a vector.
+detect_start_end <- function(path,sheet) {
+  #Determine the starting and ending row of data
+  #By reading the first column as text
+  read_excel(
+    path,
+    sheet=sheet,
+    range=cell_limits(c(1, 1), c(NA, 1)),
+    col_types=c("text"),
+    col_names="A"
+  ) %>%
+    mutate(n=row_number()) -> one.col
+  
+  ##The first row of data is the column names
+  ##It should be some variant of "Utility ID"
+  one.col %>%
+    filter(str_detect(str_to_upper(A),"UTILITY")) %>%
+    summarize(n=min(n)) %>%
+    pull(n) -> first.row
+  
+  #Abort if we can't detect row headers
+  if(first.row == Inf) 
+      stop(
+        str_c(
+          "Unable to detect row headers in ",
+          "\nfile: ", path,
+          "\nsheet: ", sheet
+          )
+        )
+  
+  #There is frequently a "note" column at the end.
+  #Read column 1 only and look for the note column 
+  #This generates a warning if there is no note. 
+  #We'll suppress that
+  suppressWarnings(
+    one.col %>%
+      filter(str_detect(A,"NOTE")) %>%
+      summarize(n=min(n)) %>%
+      pull(n) -> last.row
+  )
+  
+  
+  #print(last.row)
+  #the max() function above will return Inf, but we 
+  if(last.row==Inf) last.row = as.integer(NA)
+  
+  return(c(first.row,last.row))
+}
+
+
+
+
+
+
+
+
+
 ###########################
 ###########################
 ## Define functions for identifying 
@@ -44,6 +105,58 @@ dir.create(path.EIA860.out, recursive = TRUE, showWarning = FALSE)
 ## It will return a tibble of data or an empty tibble
 ###########################
 ###########################
+
+##############################
+#Boiler to generator mappings
+##############################
+load_boiler_generator <- function(path,yr) {
+  sheetlist <- excel_sheets(path)
+  
+  #Find a sheet with "Boiler" and "Gen(erator)" in the name
+  sheetlist <- sheetlist[ str_detect(sheetlist,"[Bb]oiler") & str_detect(sheetlist,"[Gg]en") ]
+  
+  if(length(sheetlist) == 0) {
+    warning(str_c("Could not find a Boiler-Generator sheet in ",yr,". Skipping."))
+    return(tibble())
+  }
+  
+  if(length(filelist) > 1) {
+    warning(str_c("Multiple sheets in ",yr," match a Boiler-Generator sheet name. Skipping."))
+    return(tibble())
+  }
+  
+  #Determine the starting and ending row of data
+  row.bounds = detect_start_end(path,sheetlist)
+  
+  #Read the sheet and clean up the data
+  read_excel(
+    file.path(path),
+    sheet=sheetlist, 
+    range= cell_rows(c(row.bounds[1], row.bounds[2]-1))
+  ) %>%
+    #Conform column names
+    rename(
+      orispl.code = matches("PLANT.?CODE",ignore.case = TRUE),
+      eia.unit.id = contains("BOILER",ignore.case=TRUE),
+      eia.generator.id = matches("GENERATOR.ID",ignore.case=TRUE)
+    ) %>%
+    select(orispl.code,eia.unit.id,eia.generator.id) %>%
+    mutate(
+      Year = yr
+    ) %>%
+    return() 
+}
+
+
+
+
+
+
+
+
+##################################
+## Boiler-Stack/Flue mapping
+##################################
 load_boiler_stack <- function(path,yr) {
   
   sheetlist <- excel_sheets(path)
@@ -62,49 +175,13 @@ load_boiler_stack <- function(path,yr) {
   }
   
   #Determine the starting and ending row of data
-  #By reading the first column as text
-  read_excel(
-    path,
-    sheet=sheetlist,
-    range=cell_limits(c(1, 1), c(NA, 1)),
-    col_types=c("text"),
-    col_names="A"
-    ) %>%
-    mutate(n=row_number()) -> one.col
-
-  ##The first row of data is the column names
-  ##It should be some variant of "Utility ID"
-  one.col %>%
-    filter(str_detect(str_to_upper(A),"UTILITY")) %>%
-    summarize(n=min(n)) %>%
-    pull(n) -> first.row
-
-  #Abort if we can't detect row headers
-  if(first.row == Inf) stop(str_c("Unable to detect row headers in Boiler-Stack year ", yr))
-  
-  #There is frequently a "note" column at the end.
-  #Read column 1 only and look for the note column 
-  #This generates a warning if there is no note. 
-  #We'll suppress that
-  suppressWarnings(
-    one.col %>%
-      filter(str_detect(A,"NOTE")) %>%
-      summarize(n=min(n)) %>%
-      pull(n) -> last.row
-  )
-  
-  
-  #print(last.row)
-  #the max() function above will return Inf, but we 
-  if(last.row==Inf) last.row = as.integer(NA)
-  
-  #print(str_c("Reading ", yr,": ",last.row-first.row-1, " rows"))
+  row.bounds = detect_start_end(path,sheetlist)
   
   #Read the sheet and clean up the data
   read_excel(
     file.path(path),
     sheet=sheetlist, 
-    range= cell_rows(c(first.row, last.row-1))
+    range= cell_rows(c(row.bounds[1], row.bounds[2]-1))
   ) %>%
     #Conform column names
     rename(
@@ -124,6 +201,7 @@ load_boiler_stack <- function(path,yr) {
 
 ##Init accumulators for each of the parts of Schedule 6
 all.boiler.stack <- tibble()
+all.boiler.generator <- tibble()
 
 
 for(yr in year.start:year.end) {
@@ -181,30 +259,12 @@ for(yr in year.start:year.end) {
   ##########################
   ## Process each part of schedule 6
   ##########################
-  load_boiler_stack(file.path(path.EIA860.source,yr,filelist),yr) %>%
-    mutate(Year = yr) %>%
+  load_boiler_generator(file.path(path.EIA860.source,yr,filelist),yr) %>%
+    bind_rows(all.boiler.generator) -> all.boiler.generator
+
+    load_boiler_stack(file.path(path.EIA860.source,yr,filelist),yr) %>%
     bind_rows(all.boiler.stack) -> all.boiler.stack
 }
 
 print(all.boiler.stack)
-
-
-
-
-# read_excel(file.path(eia860.path,"data","source",eia.year,str_c("6_1_EnviroAssoc_Y",eia.year,".xlsx")), 
-#            sheet="Boiler Stack Flue", skip=1) -> EIA860.stack
-# 
-# read_excel(file.path(eia860.path,"data","source",eia.year,str_c("6_1_EnviroAssoc_Y",eia.year,".xlsx")), 
-#            sheet="Boiler Generator", skip=1) -> EIA860.boiler
-# 
-# 
-# read_excel(file.path(eia860.path,"data","source",eia.year,str_c("3_1_Generator_Y",eia.year,".xlsx")), 
-#            sheet="Operable", skip=1, guess_max = 20000) -> EIA860.generator
-# 
-# read_excel(file.path(eia860.path,"data","source",eia.year,str_c("3_1_Generator_Y",eia.year,".xlsx")), 
-#            sheet="Retired and Canceled", skip=1) %>%
-#   bind_rows(EIA860.generator) -> EIA860.generator
-# 
-# read_excel(file.path(eia860.path,"data","source",eia.year,str_c("3_1_Generator_Y",eia.year,".xlsx")), 
-#            sheet="Proposed", skip=1) %>%
-#   bind_rows(EIA860.generator) -> EIA860.generator
+print(all.boiler.generator)
