@@ -20,7 +20,7 @@ path.project <- file.path(project.local.config$output$path)
 version.date <- project.config$`version-info`$`version-date`
 
 path.EIA860.source = file.path(path.project,"data","source","EIA-Form860")
-path.EIA860.out = file.path(path.project,"data","source","EIA-Form860")
+path.EIA860.out = file.path(path.project,"data","out","EIA-Form860")
 
 year.start = as.integer(project.config$sources$`EIA-Form860`$`start-year`)
 if(is.null(project.config$sources$`EIA-Form860`$`end-year`)) {
@@ -33,7 +33,7 @@ if(is.null(project.config$sources$`EIA-Form860`$`end-year`)) {
 ##########################
 ## Create Output Folders
 ##########################
-dir.create(path.EIA860.out, recursive = TRUE, showWarning = FALSE)
+dir.create(path.EIA860.out, recursive = TRUE, showWarnings = FALSE)
 
 
 #Detect the starting and ending row of data in the schedule 6 sheets
@@ -266,5 +266,58 @@ for(yr in year.start:year.end) {
     bind_rows(all.boiler.stack) -> all.boiler.stack
 }
 
-print(all.boiler.stack)
-print(all.boiler.generator)
+
+
+
+
+
+
+
+
+####################################################
+####################################################
+####################################################
+## Write Output Files
+####################################################
+####################################################
+####################################################
+
+
+
+###############
+
+###############
+if("rds" %in% project.local.config$output$formats) {
+  dir.create(file.path(path.EIA860.out,"rds"),showWarnings = FALSE)
+  
+  ## Boiler-Stack
+  all.boiler.stack %>%
+    write_rds(
+      file.path(path.EIA860.out,"rds","Form860_Schedule6_BoilerStack.rds.gz"), 
+      compress="gz"
+    )
+  
+  ## Boiler-Generator
+  all.boiler.generator %>%
+    write_rds(
+      file.path(path.EIA860.out,"rds","Form860_Schedule6_BoilerGenerator.rds.gz"), 
+      compress="gz"
+    )
+}
+
+if("dta" %in% project.local.config$output$formats) {
+  dir.create(file.path(path.EIA860.out,"stata"),showWarnings = FALSE)
+  
+  ## Boiler-Stack
+  all.boiler.stack %>%
+    rename_all(.funs=list( ~ str_replace_all(.,"[\\.\\s]", "_"))) %>%
+    write_dta(file.path(path.EIA860.out,"stata","Form860_Schedule6_BoilerStack.dta"))
+  
+  ## Boiler-Generator
+  all.boiler.generator %>%
+    rename_all(.funs=list( ~ str_replace_all(.,"[\\.\\s]", "_"))) %>%
+    write_dta(file.path(path.EIA860.out,"stata","Form860_Schedule6_BoilerGenerator.dta"))
+}
+
+
+
