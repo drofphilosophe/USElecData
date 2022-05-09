@@ -89,7 +89,7 @@ for yr in range(startYear,endYear+1) :
             fileInfo.append(thisFileInfo)
 
 #Write the fileList out as a CSV
-with open(os.path.join(sourcePathBase,"SourceFileLog.csv.gz"),"w",newline='') as csvout :
+with open(os.path.join(sourcePathBase,"SourceFileLog.csv"),"w",newline='') as csvout :
     fieldnames = thisFileInfo.keys()
     writer = csv.DictWriter(csvout,fieldnames=fieldnames)
     writer.writeheader()

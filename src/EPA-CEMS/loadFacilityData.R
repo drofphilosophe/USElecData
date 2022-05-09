@@ -51,8 +51,8 @@ facility.coltypes = cols(
 )
 
 
-read_csv(
-  file.path(path.project,"data", "source", "EPA-CEMS","facility_data", "FacilityData.zip"),
+read_tsv(
+  file.path(path.project,"data", "source", "EPA-CEMS","facility_data", "FacilityData.txt.gz"),
   col_types = facility.coltypes
 ) %>% 
   rename(
@@ -436,14 +436,22 @@ facility %>%
 ## Write ouptut file
 #############################
 if("rds" %in% project.local.config$output$formats) {
+<<<<<<< Updated upstream
   dir.create(file.path(path.facility.out,"rds",showWarnings = FALSE))
+=======
+  dir.create(file.path(path.facility.out,"rds"),showWarnings=FALSE)
+>>>>>>> Stashed changes
   facility %>%
     write_rds(file.path(path.facility.out,"rds","CEMS_Facility_Attributes.rds.bz2"), 
               compress="bz2")
 }
 
 if("dta" %in% project.local.config$output$formats) {
+<<<<<<< Updated upstream
   dir.create(file.path(path.facility.out,"stata",showWarnings = FALSE))
+=======
+  dir.create(file.path(path.facility.out,"stata"),showWarnings=FALSE)
+>>>>>>> Stashed changes
   
   facility %>%
     select(-geometry) %>% 

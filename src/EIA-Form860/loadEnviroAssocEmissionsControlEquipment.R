@@ -1,17 +1,38 @@
 ######################################
 ## This program will eventually clean up the EmissionsControl tab of EIA-860's Part 6.
-## I really needed SO2 control equipment at electricity generators, so that's all this
-## program does for now. Maybe someday I'll finish it.
-##
-##  REVISION HISTORY:
-##    20200319 - File Created during COVID-19 shutdown
 #####################################
-rm(list=ls())
 library(tidyverse)
 library(lubridate)
 library(readxl)
 library(haven)
 library(assertr)
+library(here)
+library(yaml)
+
+#Identifies the project root path using the
+#relative location of this script
+i_am("src/EIA-Form860/loadEnviroAssocEmissionsControlEquipment.R")
+
+#Read the project configuration
+read_yaml(here("config.yaml")) -> project.config
+read_yaml(here("config_local.yaml")) -> project.local.config
+
+path.project <- file.path(project.local.config$output$path)
+version.date <- project.config$`version-info`$`version-date`
+
+#########################
+## Create output data folders
+#########################
+path.facility.intermediate = file.path(path.project, "data","intermediate", "EPA-CEMS","facility_data")
+path.facility.out = file.path(path.project, "data","out", "EPA-CEMS","facility_data")
+path.facility.diagnostics = file.path(path.project,"diagnostics","EPA-CEMS","facility_data")
+
+
+for(f in c(path.facility.intermediate,path.facility.out,path.facility.diagnostics)) {
+  if(!dir.exists(f)) dir.create(f,recursive=TRUE)
+}
+
+
 
 g.drive = Sys.getenv("GoogleDrivePath")
 
