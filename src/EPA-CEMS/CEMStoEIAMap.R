@@ -3,14 +3,34 @@ library(lubridate)
 library(readxl)
 library(matrixStats)
 library(haven)
+library(here)
+library(yaml)
 
-rm(list=ls())
+#Identifies the project root path using the
+#relative location of this script
+i_am("src/EPA-CEMS/CEMStoEIAMap.R")
 
-eia860.path <- file.path("G:","My Drive","Data","Energy","Electricity","EIA","Form EIA-860")
-cems.path <- file.path("G:","Shared drives","CEMSData")
-cems.version <- "20200206"
-eia.year <- 2018
-cems.year <- 2019
+#Read the project configuration
+read_yaml(here("config.yaml")) -> project.config
+read_yaml(here("config_local.yaml")) -> project.local.config
+
+path.project <- file.path(project.local.config$output$path)
+version.date <- project.config$`version-info`$`version-date`
+
+path.hourly.source = file.path(path.project, "data","source", "EPA-CEMS", "hourly")
+path.facility.out = file.path(path.project, "data","out", "EPA-CEMS","facility_data")
+path.cems.intermediate = file.path(path.project,"data","intermediate","EPA-CEMS")
+path.facility.intermediate = file.path(path.project,"data","intermediate","EPA-CEMS","facility_data")
+
+date.start <- ymd(str_c(project.config$sources$`EPA-CEMS`$`start-year`,"-1-1"))
+if(is.null(project.config$sources$`EPA-CEMS`$`end-year`)) {
+  date.end <- today()
+} else {
+  date.end <- ymd(str_c(project.config$sources$`EPA-CEMS`$`end-year`,"-12-31"))
+}
+
+
+
 
 
 
