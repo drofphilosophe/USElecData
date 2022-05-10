@@ -142,7 +142,7 @@ load_boiler_generator <- function(path,yr) {
     ) %>%
     select(orispl.code,eia.unit.id,eia.generator.id) %>%
     mutate(
-      Year = yr
+      year = yr
     ) %>%
     return() 
 }
@@ -191,7 +191,7 @@ load_boiler_stack <- function(path,yr) {
     ) %>%
     select(orispl.code,eia.unit.id,eia.stack.id) %>%
     mutate(
-      Year = yr
+      year = yr
     ) %>%
     return()
 }

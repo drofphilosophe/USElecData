@@ -29,63 +29,39 @@ if(is.null(project.config$sources$`EPA-CEMS`$`end-year`)) {
   date.end <- ymd(str_c(project.config$sources$`EPA-CEMS`$`end-year`,"-12-31"))
 }
 
+read_rds(
+  file.path(path.project,"data","out","EIA-Form860","rds","Form860_Schedule6_BoilerStack.rds.gz")
+) -> EIA860.stack
 
+read_rds(
+  file.path(path.project,"data","out","EIA-Form860","rds","Form860_Schedule6_BoilerGenerator.rds.gz")
+) -> EIA860.boiler
 
+read_rds(
+  file.path(path.project,"data","out","EIA-Form860","rds","Form860_Schedule3_Generator.rds.gz")
+) -> EIA860.generator
 
-
-
-read_excel(file.path(eia860.path,"data","source",eia.year,str_c("6_1_EnviroAssoc_Y",eia.year,".xlsx")), 
-           sheet="Boiler Stack Flue", skip=1) -> EIA860.stack
-
-read_excel(file.path(eia860.path,"data","source",eia.year,str_c("6_1_EnviroAssoc_Y",eia.year,".xlsx")), 
-           sheet="Boiler Generator", skip=1) -> EIA860.boiler
-
-
-read_excel(file.path(eia860.path,"data","source",eia.year,str_c("3_1_Generator_Y",eia.year,".xlsx")), 
-           sheet="Operable", skip=1, guess_max = 20000) -> EIA860.generator
-
-read_excel(file.path(eia860.path,"data","source",eia.year,str_c("3_1_Generator_Y",eia.year,".xlsx")), 
-           sheet="Retired and Canceled", skip=1) %>%
-  bind_rows(EIA860.generator) -> EIA860.generator
-
-read_excel(file.path(eia860.path,"data","source",eia.year,str_c("3_1_Generator_Y",eia.year,".xlsx")), 
-           sheet="Proposed", skip=1) %>%
-  bind_rows(EIA860.generator) -> EIA860.generator
-
-
-read_rds(file.path(cems.path,"data","out", cems.version,"facility_data","rds","CEMS_Facility_Attributes.rds.bz2")) -> CEMS.full
+read_rds(
+  file.path(path.project,"data","out","EPA-CEMS","facility_data","rds","CEMS_Facility_Attributes.rds.bz2")
+  ) -> CEMS.full
 
 EIA860.generator %>%
-  rename(
-    orispl.code = `Plant Code`,
-    eia.generator.id = `Generator ID`
-  ) %>%
-  distinct(orispl.code, eia.generator.id) %>%
+  distinct(Year,orispl.code, eia.generator.id) %>%
   mutate(
     eia.unit.id = eia.generator.id,
     eia.unit.type = "generator"
   ) -> EIA.gen
 
 EIA860.boiler %>%
-  rename(
-    orispl.code = `Plant Code`,
-    eia.generator.id = `Generator ID`,
-    eia.unit.id = `Boiler ID`
-  ) %>%
-  distinct(orispl.code, eia.generator.id, eia.unit.id) %>%
+  distinct(Year,orispl.code, eia.generator.id, eia.unit.id) %>%
   mutate(
     eia.unit.type = "boiler"
   ) -> EIA.boiler
 
 
 EIA860.stack %>%
-  rename(
-    orispl.code = `Plant Code`,
-    eia.stack.id = `Stack / Flue ID`,
-    eia.unit.id = `Boiler ID`
-  ) %>%
-  distinct(orispl.code, eia.stack.id, eia.unit.id) %>%
-  left_join(EIA.boiler) %>%
+  distinct(Year,orispl.code, eia.stack.id, eia.unit.id) %>%
+  left_join(EIA.boiler, by=c("Year","orispl.code","eia.unit.id")) %>%
   mutate(
     eia.unit.type = "stack"
   ) %>%
@@ -104,8 +80,7 @@ EIA.gen %>%
 
 
 CEMS.full %>% 
-  #filter(year == cems.year) %>%
-  distinct(orispl.code, cems.unit.id) %>%
+  distinct(Year,orispl.code, cems.unit.id) %>%
   mutate(
     cems.unit.id = str_replace_all(cems.unit.id,fixed("*"),"\\*"),
     cems.unit.id = str_replace_all(cems.unit.id,fixed("#"),"\\#"),

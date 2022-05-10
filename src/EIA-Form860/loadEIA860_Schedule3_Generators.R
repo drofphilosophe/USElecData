@@ -234,7 +234,7 @@ for(yr in year.start:year.end) {
     sheet.data %>%
       select(-any_of(orig.names)) %>%
       mutate(
-        Year = yr,
+        year = yr,
       ) %>%
       bind_rows(all.generators) -> all.generators
   }
