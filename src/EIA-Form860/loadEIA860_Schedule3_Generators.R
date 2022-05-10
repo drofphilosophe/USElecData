@@ -346,27 +346,28 @@ for(ym in year.month.cols) {
 ###############
 
 ###############
-# if("rds" %in% project.local.config$output$formats) {
-#   dir.create(file.path(path.EIA860.out,"rds"),showWarnings = FALSE)
-#   
-#   ## Boiler-Stack
-#   all.boiler.stack %>%
-#     write_rds(
-#       file.path(path.EIA860.out,"rds","Form860_Schedule6_BoilerStack.rds.gz"), 
-#       compress="gz"
-#     )
-#   
-# }
-# 
-# if("dta" %in% project.local.config$output$formats) {
-#   dir.create(file.path(path.EIA860.out,"stata"),showWarnings = FALSE)
-#   
-#   ## Boiler-Stack
-#   all.boiler.stack %>%
-#     rename_all(.funs=list( ~ str_replace_all(.,"[\\.\\s]", "_"))) %>%
-#     write_dta(file.path(path.EIA860.out,"stata","Form860_Schedule6_BoilerStack.dta"))
-#   
-# }
+if("rds" %in% project.local.config$output$formats) {
+  dir.create(file.path(path.EIA860.out,"rds"),showWarnings = FALSE)
+
+  ## Boiler-Stack
+  all.generators %>%
+    write_rds(
+      file.path(path.EIA860.out,"rds","Form860_Schedule3_Generator.rds.gz"),
+      compress="gz"
+    )
+
+}
+
+if("dta" %in% project.local.config$output$formats) {
+  dir.create(file.path(path.EIA860.out,"stata"),showWarnings = FALSE)
+
+  ## Boiler-Stack
+  all.generators %>%
+    rename_all(.funs=list( ~ str_replace_all(.,"[\\.\\s]", "_"))) %>%
+    rename_all(.funs=list(~str_sub(.,1,32))) %>%
+    write_dta(file.path(path.EIA860.out,"stata","Form860_Schedule3_Generator.dta"))
+
+}
 
 
 
