@@ -550,7 +550,7 @@ for(yr in year.list) {
     #Create groups that consolidate connected equipment
     #Start by grouping by CEMS unit
     group_by(orispl.code,cems.unit.id) %>%
-    mutate(cems.eia.group = group_indices()) -> cems.2.eia
+    mutate(cems.eia.group = cur_group_id()) -> cems.2.eia
   
   
   #Now consolidate those groups by boiler.id then generator.id
