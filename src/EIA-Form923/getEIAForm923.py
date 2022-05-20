@@ -117,6 +117,9 @@ def downloadAndExtract(url, dest) : #Download and extract ZIP archive
                         bufout.seek(0)
                         with open(os.path.join(dest,fileName),"wb") as fout :
                             fout.write(bufout.read())
+                        #Truncate and rewind the buffer
+                        bufout.seek(0)
+                        bufout.truncate()
                 
 
 ########################################################
