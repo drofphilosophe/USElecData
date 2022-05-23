@@ -289,11 +289,6 @@ all.data %>%
     ba.code = BALANCINGAUTHORITYCODE,
     report.frequency = RESPONDENTFREQUENCY
   ) %>%
-  mutate(
-    elec.heat.input = set_units(elec.heat.input, "MBTU"),
-    total.heat.input = set_units(total.heat.input, "MBTU"),
-    net.generation = set_units(net.generation,"MW*h")
-  ) %>%
   select(-any_of(c("OPERATORNAME","PLANTNAME","OPERATORID","STATE","CENSUSREGION","SECTORNAME"))) %>%
   select(orispl.code,prime.mover,fuel.type,year,everything()) %>%
   arrange(orispl.code,prime.mover,fuel.type,year) -> all.data
@@ -301,6 +296,8 @@ all.data %>%
 
 #Create a long unit-by-month file
 all.data %>% 
+  #Remove annual totals to avoid confusion
+  select(-all_of(c("elec.heat.input","elec.fuel.input","net.generation","total.heat.input","total.fuel.input"))) %>%
   pivot_longer(
     cols=ends_with(str_c("_",str_to_upper(month.abb))),
     names_to=c(".value","month"),

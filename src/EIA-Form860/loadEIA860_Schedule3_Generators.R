@@ -370,4 +370,3 @@ if("dta" %in% project.local.config$output$formats) {
 }
 
 
-
