@@ -870,10 +870,12 @@ for(yr in year.list) {
       
 }
 
-#removing the unit.grouping column and renamne the text version
+#removing the unit.grouping column and rename the text version
 cems.grouping.allyears %>%
   select(-unit.group) %>%
   rename(unit.group = unit.group.text) -> cems.grouping.allyears
+
+
 
 ####################################################
 ####################################################

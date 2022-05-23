@@ -1,5 +1,5 @@
 ############################################
-## net_to_gross_adjustment.R
+## netToGrossCalculation.R
 ##
 ## This program uses data in EIA 923 and CEMS to compute
 ## the adjustment between net generation (from EIA 923)
@@ -7,8 +7,7 @@
 ## that many CCGTs in CEMS only report generation from the CT
 ## part and ignore generation from the ST part. 
 ##
-## The bluk of the processing in this program is getting the unit matching 
-## correct. Another program produces a map of CEMS to EIA units. This progra
+## Using the mapping created by CEMStoEIAMap.R, This program
 ## groups connected generation parts into a single unit and collects
 ## generation data from EIA 923's Generator Data. Some plants do not always 
 ## report all generation in this dataset. i.e., ORISPL 3 does not report
@@ -16,103 +15,93 @@
 ## for this, I scale up generation at the plant-fuel-month level to match
 ## total generation reported in EIA 923's "Generation and Fuel" tab. This
 ## does not provide unit-level detail, so it is an inferior data source
-##
-##  REVISION HISTORY:
-##    20200306 - File Created
-##    20200511 - Program finally completed
 #############################################
-rm(list=ls())
 library(tidyverse)
 library(lubridate)
-library(units)
 library(haven)
-library(magrittr)   #Better pipes
+library(here)
+library(yaml)
 
-g.drive = Sys.getenv("GoogleDrivePath")
-g.shared.drive = file.path("G:","Shared Drives")
+#Identifies the project root path using the
+#relative location of this script
+i_am("src/EPA-CEMS/netToGrossCalculation.R")
 
-#version.date <- format(now(),"%Y%m%d")
-cems.path <- file.path(g.shared.drive,"CEMSData")
-cems.version.date <- "20200206"
+#Read the project configuration
+read_yaml(here("config.yaml")) -> project.config
+read_yaml(here("config_local.yaml")) -> project.local.config
 
-eia923.path <- file.path(g.drive,"Data","Energy","Electricity","EIA","Form EIA-923")
-eia923.version <- "20200416"
+path.project <- file.path(project.local.config$output$path)
+version.date <- project.config$`version-info`$`version-date`
 
-eia860.path <- file.path(g.drive,"Data","Energy","Electricity","EIA","Form EIA-860")
+year.start <- as.integer(project.config$sources$`EIA-Form923`$`start-year`)
+if(is.null(project.config$sources$`EIA-Form923`$`end-year`)) {
+  year.end <- year(today())
+} else {
+  year.end <- as.integer(project.config$sources$`EIA-Form923`$`end-year`)
+}
 
-#You can't start before 2008 (when EIA began providing generator data)
-start.year <- 2008
-end.year <- 2021
+
+
 
 ##################################
 ## CEMS to EIA crosswalk
 ##################################
 crosswalk <- read_rds(
-  file.path(cems.path,"data","out",cems.version.date,"to_eia","R","CEMSToEIAUnitGrouping.rds.gz")
+  file.path(path.project,"data","out","crosswalks","rds","CEMSToEIAUnitGrouping.rds.gz")
   )
 
 
-
-
-
-
-
+###############################
 ###############################
 ## Prep EIA Data
 ###############################
-read_rds(file.path(eia923.path,"data","out",eia923.version,"R","EIA923_Generator.rds.gz")) %>%
-  filter(between(year,start.year,end.year)) -> eia923.generator
+###############################
+
+## The generator file
+read_rds(
+  file.path(path.project,"data","out","EIA-Form923","rds","eia_923_generator.rds.gz")) -> eia923.generator
+
+
+
+
+
+
 
 ##You will need to true up generation in the eia923.generator since not all generating units report in that form
 ##But all do report in genfuel. I'll compute the ratio of generation to look for missing generation
-read_rds(file.path(eia923.path,"data","out",eia923.version,"R","EIA923_generation_and_fuel.rds.gz")) %>%
+read_rds(file.path(path.project,"data","out","EIA-Form923","rds","eia_923_generation_and_fuel_wide.rds.gz")) %>% 
   mutate(
-    year = year(Month),
+    year = year(month),
     fuel.type = case_when(
       aer.fuel.type == "COL" ~ "COL",
       aer.fuel.type == "NG" ~ "NG",
       aer.fuel.type %in% c("PC","RFO","DFO") ~ "PET",
       TRUE ~ ""
     ),
-    net.generation = drop_units(net.generation)
   ) %>%
-  group_by(Month,orispl.code,fuel.type) %>%
-  summarize(totalgen.full = sum(net.generation,na.rm=TRUE)) %>%
-  mutate(year = year(Month)) -> total.full
+  select(month,orispl.code,fuel.type,net.elec.generation.MWh) %>%
+  group_by(month,orispl.code,fuel.type) %>%
+  summarize(
+    totalgen.full = sum(net.elec.generation.MWh,na.rm=TRUE),
+    .groups="drop"
+  ) %>%
+  mutate(year = year(month)) -> total.full
 
 
 
 ##Load EIA 860 to get a fuel type for each generator
-read_dta(file.path(eia860.path,"data","output","eia_860_generators.dta")) %>%
-  select(Year,PlantCode,GeneratorID,EnergySource1) %>%
-  #filter(between(Year,start.year,end.year)) %>%
-  mutate(
-    EnergySource1 = names(attributes(EnergySource1)$labels[EnergySource1]) 
-  ) %>%
+read_rds(file.path(path.project,"data","out","EIA-Form860","rds","Form860_Schedule3_Generator.rds.gz")) %>% 
+  select(year,orispl.code,eia.generator.id,energy.source.1) %>%
   mutate(
     fuel.type = case_when(
-      str_detect(EnergySource1,"Coal") ~ "COL",
-      str_detect(EnergySource1,"Gas") ~ "NG",
-      EnergySource1 == "Waste Heat" ~ "NG",
-      str_detect(EnergySource1,"Oil") ~ "PET",
-      EnergySource1 %in% c("Petroelum Coke","Kerosene","Jet Fuel") ~ "PET",
-      EnergySource1 %in% c("Nuclear","Solar","Wind","Geothermal","Other","Agricultural Byproducts","Black Liquor","Purchased Steam") ~ "",
-      str_detect(EnergySource1, "Biomass") ~ "",
-      str_detect(EnergySource1, "Waste") ~ "",
-      str_detect(EnergySource1, "Water") ~ "",
-      str_detect(EnergySource1, "Tire") ~ "",
-      str_detect(EnergySource1, "Syngas") ~ "",
-      str_detect(EnergySource1, "Energy Storage") ~ "",
+      energy.source.1 %in% c("BIT","SUB","LIG","WC") ~ "COL",
+      energy.source.1 %in% c("NG","LFG","OBG","BFG","WH") ~ "NG",
+      energy.source.1 %in% c("DFO","RFO","PC","RC","KER","JF","PET") ~ "PET",
       TRUE ~ as.character(NA)
     )
   ) %>%
   filter(!is.na(fuel.type) & fuel.type != "") %>%
-  select(-EnergySource1) %>%
-  rename(
-    year = Year,
-    orispl.code = PlantCode,
-    eia.generator.id = GeneratorID
-  ) -> eia860.fueltype
+  select(-energy.source.1) -> eia860.fueltype
 
 
 
@@ -135,7 +124,8 @@ eia860.fueltype %>%
   #My clever design sorts fuels the way I want to prioritize them
   #Coal then natural gas then petroleum
   summarize(
-    fuel.type = first(fuel.type)
+    fuel.type = first(fuel.type),
+    .groups="drop"
   ) -> fueltype.by.unitgroup
 
 eia923.generator %>%
@@ -151,8 +141,12 @@ eia923.generator %>%
     fueltype.by.unitgroup,
     by=c("year","orispl.code","unit.group") 
   ) %>%
-  group_by(Month,orispl.code,fuel.type) %>%
-  summarize(totgen.generator = sum(net.generation.mwh, na.rm=TRUE)) -> total.generator
+  rename(month = Month) %>%
+  group_by(month,orispl.code,fuel.type) %>%
+  summarize(
+    totgen.generator = sum(net.generation.mwh, na.rm=TRUE),
+    .groups="drop"
+    ) -> total.generator
 
 
 
@@ -166,21 +160,21 @@ eia923.generator %>%
 total.generator %>% 
   full_join(
     total.full,
-    by=c("Month","orispl.code","fuel.type")
-  ) %>%
-  ungroup() %>%
+    by=c("month","orispl.code","fuel.type")
+  ) %>% 
   mutate(
     generation.factor = totalgen.full / totgen.generator,
-    #Replace non-sense values of the generation factor. ANything less than one implies
+    #Replace nonsense values of the generation factor. Anything less than one implies
     #Total generation from the plant is less than what is on the generator page, which is impossible
-    #Larger than four seems unlikley. There is a large mass around 2.5, consisitent with CCGTs not reporting
+    #Larger than four seems unlikely. There is a large mass around 2.5, consistent with CCGTs not reporting
     #the CT part.
     generation.factor = if_else(between(generation.factor,1,4),generation.factor,1)
-  ) %>%
-  select(year,Month,orispl.code,fuel.type,generation.factor) -> combined.generation
+  ) %>% drop_na() %>%
+  select(month,orispl.code,fuel.type,generation.factor) -> combined.generation
 
-ggplot(data=combined.generation) + 
-  geom_histogram(aes(x=generation.factor))
+ggplot(data=filter(combined.generation,generation.factor > 1)) + 
+  geom_histogram(aes(x=generation.factor),color="black",fill="blue") +
+  theme_bw()
   
   
 #Scale up generation in EIA923.generator
@@ -191,7 +185,7 @@ eia923.generator %>%
   ) %>%
   left_join(
     combined.generation,
-    by=c("Month","orispl.code","fuel.type")
+    by=c("Month"="month","orispl.code","fuel.type")
   ) %>%
   replace_na(list(generation.factor=1)) %>%
   mutate(
@@ -209,36 +203,47 @@ eia923.generator %>%
 #Plants where we can't identify the unit group should be tagged as
 #having a dummy unit group 0L
 eia923.generator %>%
-  replace_na(list(unit.code=0L)) %>%
+  replace_na(list(unit.group="")) %>%
   group_by(orispl.code,unit.group,Month) %>%
   summarize(
-    eia.mwh = sum(net.generation.mwh, na.rm=TRUE)
+    eia.mwh = sum(net.generation.mwh, na.rm=TRUE),
+    .groups="drop"
   ) -> eia923.generator
 
 #Make a list of non-matching ORISPLs
 eia923.generator %>%
-  filter(unit.group == 0L) %>%
-  distinct(orispl.code,unit.group) -> eia923.nomatch.orispl
+  filter(unit.group == "") %>%
+  distinct(orispl.code,unit.group,Month) -> eia923.nomatch.orispl
 
 
 
 ##########################################
 ## CEMS data prep
 ##########################################
-read_rds(file.path(cems.path,"data","out",cems.version.date,"monthly","rds","CEMS_by_month.rds.gz")) %>%
+read_rds(file.path(path.project,"data","out","EPA-CEMS","monthly","rds","CEMS_All_Months.rds.gz")) %>%
   select(orispl.code,cems.unit.id,month,elec.load.mwh,steam.load.mmbtu,total.heat.input.mmbtu,elec.heat.input.mmbtu) %>%
   rename(Month=month) %>%
   mutate(year=year(Month)) %>%
-  filter(between(year,start.year,end.year)) -> cems.generator
+  filter(between(year,year.start,year.end)) -> cems.generator
 
 ##Prep the crosswalk for CEMS data
 crosswalk %>%
-  distinct(orispl.code,unit.group,cems.unit.id) -> crosswalk.cems
+  distinct(orispl.code,cems.unit.id,year,unit.group) -> crosswalk.cems
+
+crosswalk.cems %>% 
+  count(orispl.code,cems.unit.id,year) %>%
+  filter(n > 1) -> duplicated.keys
+
+if(nrow(duplicated.keys) > 0) {
+  writeLines("We have duplicated keys and the following join won't work correctly. Aborting.")
+  stop("Stopping")
+}
 
 #Merge in the crosswalk
 cems.generator %>% 
   left_join(
-    crosswalk.cems, by=c("orispl.code","cems.unit.id")
+    crosswalk.cems, 
+    by=c("orispl.code","cems.unit.id","year")
   ) -> cems.generator
 
 ##Collapse cems units to the ORISPL level if there was no EIA match
@@ -246,14 +251,17 @@ cems.generator %>%
 cems.generator %>% 
   left_join(
     eia923.nomatch.orispl,
-    by="orispl.code",
+    by=c("orispl.code","Month"),
     suffix=c("",".update")
   ) %>%
   mutate(
-    unit.group = if_else(is.na(unit.group.update), unit.group, 0L)
+    unit.group = if_else(is.na(unit.group.update), unit.group, "")
   ) %>%
   group_by(orispl.code,unit.group,Month) %>%
-  summarize(cems.mwh = sum(elec.load.mwh, na.rm = TRUE)) -> cems.generator
+  summarize(
+    cems.mwh = sum(elec.load.mwh, na.rm = TRUE),
+    .groups="drop"
+  ) -> cems.generator
 
 
 
@@ -272,39 +280,49 @@ eia923.generator %>%
   mutate(
     eia.to.cems = eia.mwh / cems.mwh
   ) %>%
-  drop_na(eia.to.cems) -> combined.operations
+  drop_na(eia.to.cems) %>%
+  arrange(orispl.code, unit.group, Month) -> combined.operations
 
+
+
+######################################
+######################################
+## Clean up the ratios
+######################################
+######################################
 
 
 
 
 #####################
-## Save
+## Remove unrealistic net-to-gross ratios
 ####################
 combined.operations %>%
-  group_by(orispl.code,unit.group) %>%
   rename(
     net.to.gross.ratio = eia.to.cems
   ) %>%
+  group_by(orispl.code,unit.group) %>%
   #Expand the time series for each plant to the full date range to the current date
   complete(
     nesting(orispl.code,unit.group),
-    Month = seq.Date(ymd(str_c(start.year,"01","01",sep="-")),today(),by="month")
+    Month = seq.Date(ymd(str_c(year.start,"01","01",sep="-")),today(),by="month")
   ) %>%
   arrange(orispl.code,unit.group,Month) %>%
   #Compute a rolling average net-to-gross as well
   mutate(
+    #Convert absurd values to missings
+    net.to.gross.ratio = if_else(between(net.to.gross.ratio,0.25,3),net.to.gross.ratio,as.double(NA)),
+    #Compute some rolling averages
     ma.full = (lag(eia.mwh) + eia.mwh + lead(eia.mwh)) / (lag(cems.mwh) + cems.mwh + lead(cems.mwh)),
     ma.full = if_else(between(ma.full,0.25,3),ma.full,as.double(NA)),
     ma.doughnut = (lag(eia.mwh) + lead(eia.mwh)) / (lag(cems.mwh) + lead(cems.mwh)),
     ma.doughnut = if_else(between(ma.doughnut,0.25,3),ma.doughnut,as.double(NA))
   ) %>%
-  #Convert absurd values (smaller than 0.25 or larger than 3 or deviates by 50% from the moving average) to rolling averages.
+  #Convert values that differ by more than 50% of from the unit's moving average to rolling averages.
   #If that doesn't help, convert to NA
   mutate(
     deviation = abs(net.to.gross.ratio - ma.full) / ma.full,
     deviation = if_else(is.na(deviation),0,deviation),
-    net.to.gross.ratio = if_else(between(net.to.gross.ratio,0.25,3),net.to.gross.ratio,as.double(NA)),
     net.to.gross.ratio = case_when(
       #Everything is OK
       !is.na(net.to.gross.ratio) & between(deviation,-0.5,.5) ~ net.to.gross.ratio,
@@ -333,47 +351,93 @@ combined.operations %>%
     )
   ) %>%
   ungroup() %>%
-  arrange(orispl.code,cems.unit.id,Month) %>%
+  arrange(orispl.code,cems.unit.id,Month) -> net.2.gross.ratios
+
+
+
+##Impute using annual and lifetime ratios
+net.2.gross.ratios %>%
+  group_by(orispl.code,cems.unit.id,year) %>%
+  summarize(
+    avg.annual.ratio = mean(net.to.gross.ratio,na.rm=TRUE),
+    .groups="drop"
+  ) -> annual.ratios
+
+net.2.gross.ratios %>%
+  group_by(orispl.code,cems.unit.id) %>%
+  summarize(
+    avg.lifetime.ratio = mean(net.to.gross.ratio,na.rm=TRUE),
+    .groups="drop"
+  ) -> lifetime.ratios
+
+net.2.gross.ratios %>%
+  summarize(m = median(net.to.gross.ratio,na.rm=TRUE)) %>%
+  pull(m) -> overall.mean.ratio
+
+
+net.2.gross.ratios %>%
+  left_join(annual.ratios,by=c("orispl.code","cems.unit.id","year")) %>%
+  left_join(lifetime.ratios,by=c("orispl.code","cems.unit.id")) %>%
   mutate(
-    assigned = is.na(net.to.gross.ratio)
+    net.to.gross.ratio = case_when(
+      #Keep the net-to-gross ratio if we have one
+      !is.na(net.to.gross.ratio) ~ net.to.gross.ratio,
+      #If not try to use an annual average
+      !is.na(avg.annual.ratio) ~ avg.annual.ratio,
+      #Otherwise use the lifetime average
+      !is.na(avg.lifetime.ratio) ~ avg.lifetime.ratio,
+      #Replace any remaining NAs with the overall sample average
+      TRUE ~ overall.mean.ratio 
+    )
   ) %>%
-  #Replace still missings with 0.9 which is about the sample average
-  replace_na(list(net.to.gross.ratio = 0.9)) %>%
-  select(orispl.code,cems.unit.id,Month,net.to.gross.ratio,assigned) -> combined.operations
+  select(orispl.code,cems.unit.id,Month,net.to.gross.ratio) -> net.2.gross.ratios
 
+
+#I know the output folders exist because I loaded a crosswalk from this folder as part of this script
+if("rds" %in% project.local.config$output$formats) {
+  net.2.gross.ratios %>%
+    write_rds(
+      file.path(path.project,"data","out","crosswalks","rds","EIANet_to_CEMSGross_Ratios.rds.gz"), 
+      compress="gz"
+    )
+}
+
+if("dta" %in% project.local.config$output$formats) {  
+  net.2.gross.ratios %>%
+    rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
+    write_dta(
+      file.path(path.project,"data","out","crosswalks","stata","EIANet_to_CEMSGross_Ratios.dta")
+    )
+}
   
 
 
 
 
-combined.operations %>%
-  select(orispl.code,cems.unit.id,Month,net.to.gross.ratio) %>%
-  write_rds(file.path(cems.path,"data","out",cems.version.date,"facility_data","rds","EIANet_to_CEMSGross_Ratios.rds.gz"),compress="gz") %>%
-  rename_all(list(~str_replace_all(.,"[\\s\\.]","_"))) %>%
-  write_dta(file.path(cems.path,"data","out",cems.version.date,"facility_data","stata","EIANet_to_CEMSGross_Ratios.dta"))
-  
 
 ############################
 ## Make a histogram of net-to-gross ratios
 ############################
-ggplot(data=combined.operations) + 
+ggplot(data=net.2.gross.ratios) + 
   geom_histogram(
-    aes(x=net.to.gross.ratio,fill=assigned), 
+    aes(x=net.to.gross.ratio), 
     bins=50,
-    color="black"
+    color="black",
+    fill="blue"
   ) +
   theme_bw() +
   labs(
     x="EIA Net to CEMS Gross Generation Ratio",
     y="count"
   ) + 
-  scale_x_continuous(breaks=seq(0,3,.5))
+  scale_x_continuous(breaks=seq(0,3,.5)) 
 
-if(!dir.exists(file.path(cems.path,"results",cems.version.date))) dir.create(file.path(cems.path,"results",cems.version.date))
-if(!dir.exists(file.path(cems.path,"results",cems.version.date,"graphs"))) dir.create(file.path(cems.path,"results",cems.version.date,"graphs"))
 
-ggsave(file.path(cems.path,"results",cems.version.date,"graphs","EIANetToCEMSGrossRatio_Histogram.pdf"))
-ggsave(file.path(cems.path,"results",cems.version.date,"graphs","EIANetToCEMSGrossRatio_Histogram.png"))
+
+dir.create(file.path(path.project,"results","diagnostics","EIANet_to_CEMSGross"), recursive = TRUE, showWarnings = FALSE)
+
+ggsave(file.path(path.project,"results","diagnostics","EIANet_to_CEMSGross","EIANetToCEMSGrossRatio_Histogram.pdf"))
+ggsave(file.path(path.project,"results","diagnostics","EIANet_to_CEMSGross","EIANetToCEMSGrossRatio_Histogram.png"))
 
 
 
