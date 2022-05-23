@@ -274,6 +274,10 @@ all.data %>%
     orispl.code = PLANTID,
     prime.mover = REPORTEDPRIMEMOVER,
     year = YEAR,
+    nuclear.unit.id = NUCLEARUNITID,
+    plant.NERC.region = NERCREGION,
+    plant.NAICS = NAICSCODE,
+    eia.sector.id = EIASECTORNUMBER,
     fuel.type = REPORTEDFUELTYPECODE,
     aer.fuel.type = AERFUELTYPECODE,
     fuel.unit = PHYSICALUNITLABEL,
@@ -281,13 +285,16 @@ all.data %>%
     elec.fuel.input = ELECTRICFUELCONSUMPTIONQUANTITY,
     net.generation = NETGENERATIONMEGAWATTHOURS,
     total.heat.input = TOTALFUELCONSUMPTIONMMBTU,
-    total.fuel.input = TOTALFUELCONSUMPTIONQUANTITY
+    total.fuel.input = TOTALFUELCONSUMPTIONQUANTITY,
+    ba.code = BALANCINGAUTHORITYCODE,
+    report.frequency = RESPONDENTFREQUENCY
   ) %>%
   mutate(
     elec.heat.input = set_units(elec.heat.input, "MBTU"),
     total.heat.input = set_units(total.heat.input, "MBTU"),
     net.generation = set_units(net.generation,"MW*h")
   ) %>%
+  select(-any_of(c("OPERATORNAME","PLANTNAME","OPERATORID","STATE","CENSUSREGION","SECTORNAME"))) %>%
   select(orispl.code,prime.mover,fuel.type,year,everything()) %>%
   arrange(orispl.code,prime.mover,fuel.type,year) -> all.data
 
@@ -308,13 +315,13 @@ all.data %>%
     fuel.consumed.units = QUANTITY,
     fuel.consumed.elec.units = ELEC_QUANTITY,
     fuel.mmbtu.per.unit = MMBTUPER_UNIT,
-    net.elec.generation.MWh = NETGEN
+    net.elec.generation.MWh = NETGEN,
+    fuel.consumed.mmbtu = TOT_MMBTU,
+    fuel.consumed.elec.mmbtu = ELEC_MMBTU,
   ) %>%
   mutate(
-    fuel.consumed.mmbtu = fuel.consumed.units * fuel.mmbtu.per.unit,
-    fuel.consumed.elec.mmbtu = fuel.consumed.elec.units * fuel.mmbtu.per.unit,
     heat.rate.elec = fuel.consumed.elec.mmbtu / net.elec.generation.MWh
-  ) -> all.data.wide
+  ) -> all.data.long
 
 
 
@@ -337,7 +344,7 @@ dir.create(path.out,recursive=TRUE,showWarnings = FALSE)
 if("rds" %in% project.local.config$output$formats) {
   dir.create(file.path(path.out,"rds"),recursive=TRUE,showWarnings = FALSE)
   
-  all.data.wide %>%
+  all.data.long %>%
     write_rds(
       file.path(path.out,"rds","eia_923_generation_and_fuel_wide.rds.gz"), 
       compress="gz"
@@ -347,7 +354,7 @@ if("rds" %in% project.local.config$output$formats) {
 if("dta" %in% project.local.config$output$formats) {
   dir.create(file.path(path.out,"stata"),recursive=TRUE,showWarnings = FALSE)
   
-  all.data.wide %>%
+  all.data.long %>%
     rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
     write_dta(
       file.path(path.out,"stata","eia_923_generation_and_fuel_wide.dta")
