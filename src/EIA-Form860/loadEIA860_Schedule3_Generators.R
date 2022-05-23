@@ -364,7 +364,7 @@ if("dta" %in% project.local.config$output$formats) {
   ## Boiler-Stack
   all.generators %>%
     rename_all(.funs=list( ~ str_replace_all(.,"[\\.\\s]", "_"))) %>%
-    rename_all(.funs=list(~str_sub(.,1,32))) %>%
+    rename_all(.funs=list(~str_sub(.,1,31))) %>%
     write_dta(file.path(path.EIA860.out,"stata","Form860_Schedule3_Generator.dta"))
 
 }
