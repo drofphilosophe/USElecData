@@ -717,7 +717,7 @@ for(yr in year(date.start):year(date.end) ) {
 file.list = list.files(file.path(path.monthly.out,"rds"),pattern=".gz")
 #Remove the "all months" file from the list of files to combine
 #Otherwise, we'd get an ouroboros after multiple runs 
-file.list = setdiff(file.list,"CEMS_All_months.rds.gz")
+file.list = file.list[!str_detect(file.list,"All_Months")]
 
 all.months <- tibble()
 for(f in file.list) {
