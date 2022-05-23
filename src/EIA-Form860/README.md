@@ -50,3 +50,9 @@ future if the naming conventions of source file columns change.
 The JSON colspec files are:
 
 1. `EIA860_Schedule3_Generators_Colspec.json`  
+
+### Future work
+
+The following legacy scripts provide template code that will eventually be integrated into something usefule for this repo:
+
+1. `loadEnviroAssocEmissionsControlEquipment.R` - Loads information on emissions control equipment associated with each stack/flue from EIA 860 Schedule 6 Part 12. 
