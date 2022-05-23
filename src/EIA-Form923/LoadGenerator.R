@@ -1,90 +1,120 @@
 ############################################################
-## load_eia923_generator_data.R
-##
-## Loads generator data from EIA-923.
-##
-## This departs from my previous code base by programatically
-## determining the excel file to load for each year. I operate
-## under the assumption that each year contains either:
-##  1 - No subfolders (for historical data that were final when I downloaded them)
-##  2 - Subfolders named YYYYMMDD for the date that version of the data were downloaded
-##
-## Things like sheet names and column specs I will still need to deal with manually.
-##
-##  20200417 - File Created
+## loadGenerator.R
 ############################################################
-
-rm(list=ls())
 library(tidyverse)
 library(readxl)     #Excel files
 library(lubridate)  #Date and time handling
-library(magrittr)   #Better pipes
 library(tidyselect) #Better select
-library(units)      #Seamless handling of units of measure
+library(haven)
+library(here)
+library(yaml)
 
-#setup
-eia923.path <- file.path("G:","My Drive","Data","Energy","Electricity","EIA","Form EIA-923")
-eia923.version <- "20200416"
-startYear <- 2008 # EIA began reporting boiler fuel data in 2008
-endYear <- 2019
+#Identifies the project root path using the
+#relative location of this script
+i_am("src/EIA-Form923/loadGenerator.R")
 
+#Read the project configuration
+read_yaml(here("config.yaml")) -> project.config
+read_yaml(here("config_local.yaml")) -> project.local.config
+
+path.project <- file.path(project.local.config$output$path)
+version.date <- project.config$`version-info`$`version-date`
+
+path.source = file.path(path.project, "data","source", "EIA-Form923")
+
+year.start <- as.integer(project.config$sources$`EIA-Form923`$`start-year`)
+if(is.null(project.config$sources$`EIA-Form923`$`end-year`)) {
+  year.end <- year(today())
+} else {
+  year.end <- as.integer(project.config$sources$`EIA-Form923`$`end-year`)
+}
+
+
+
+#################################
+## Loop through each year of data
+#################################
 all.data <- tibble()
-for(yr in startYear:endYear) {
+for(yr in year.start:year.end) {
   print(str_c("Processing ", yr))
-  year.path <- file.path(eia923.path,"data","source",yr)
-  ###########
-  ## check for YYYYMMDD subfolders
-  ##########
-  dir.list <- sort(list.dirs(year.path, full.names=FALSE),decreasing=TRUE)
-  if(length(dir.list) > 0) {
-    infile.path <- file.path(year.path,dir.list[1])
+  
+  infile.path <- file.path(path.source,yr)
+
+  if(dir.exists(infile.path)) {
+    writeLines(str_c("Source Path: ", infile.path))  
   } else {
-    infile.path <- year.path
+    writeLines(str_c("Could not find a source data folder for year ", yr,". Skipping."))
+    next
   }
-  print(str_c("Source Path: ", infile.path))
-  flist <- list.files(infile.path,pattern="*.xls?")
+  
+
+  #Get a list of Excel files
+  flist <- list.files(infile.path,pattern=r"{*.[Xx][Ll][Ss][Xx]?}")
+  
+  #exclude any temporary files created by excel. They have a tilde at the start of the filename
+  flist = flist[!str_detect(flist,"^~")]
+  
   infile.name = as.character(NA)
+  
   #Determine the type of file we have. It is either "f906920[y\_]<yr>.xls"
   #or ucase matches regex *SCHEDULE*5*
   if(str_c("f906920_",yr,".xls") %in% flist) {
+    #Pattern "f906920_<yr>.xls"
     infile.name = str_c("f906920_",yr,".xls")
     file.format = "EIA906"
-  } else   if(str_c("f906920y",yr,".xls") %in% flist) {
+  } else if(str_c("f906920y",yr,".xls") %in% flist) {
+    #Pattern "f906920y<yr>.xls"
     infile.name = str_c("f906920y",yr,".xls")
     file.format = "EIA906"
-  } else if(any(str_detect(str_to_upper(flist),"SCHEDULE.*[\\s\\_]5"))) {
-    candidate.name = flist[str_detect(str_to_upper(flist),"SCHEDULE.*[\\s\\_]5")]
+  } else if("eia923December2008.xls" %in%  flist) {
+    #The odd 2008 filename
+    infile.name = "eia923December2008.xls"
+    file.format = "EIA923"
+  } else if(any(str_detect(str_to_upper(flist),r"{SCHEDULE.*[\s\_]2\_3}"))) {
+    #or ucase matches regex *SCHEDULE*5*
+    candidate.name = flist[str_detect(str_to_upper(flist),r"{SCHEDULE.*[\s\_]2\_3}")]
     if(length(infile.name) == 1) {
       infile.name = candidate.name[1]
       file.format = "EIA923"
+    } else {
+      stop(str_c("Multiple files in the ", yr, " folder match the pattern SCHEDULE*5. Aborting."))
     }
-  } 
-  
-  if(is.na(infile.name)) {
-    print("No idea which file contains boiler fuel data")
-    print("The file list follows:")
-    for(f in flist) {
-      print(f)
-    }
-    stop("Aborting")
+  } else if(length(flist) == 0) {
+    warning(str_c("No Excel files found in the ", yr, " folder. Skipping."))
+    next
+  } else {
+    stop(str_c("No conforming file name patterns in the ", yr, " folder. Aborting."))
   }
+  filepath = file.path(infile.path,infile.name)
   
-  print(str_c("Loading ", infile.name))
+  
+  #This section works around R naming conventions
+  writeLines("\n")
+  writeLines(str_c("Importing ",yr))
+  writeLines(str_c("Filename: ",infile.name))
+  
+
   #Determine which sheet to load
   sheet.list <- excel_sheets(file.path(infile.path,infile.name))
   sheet.list.1 <- sheet.list[str_detect(str_to_upper(sheet.list),"GENERATOR")]
   if(length(sheet.list.1 == 1)) {
     sheet.name = sheet.list.1[1]
   } else {
-    print("Cannot determine which sheet contains generator data")
-    for(s in sheet.list) {
-      print(s)
+    writeLines("Cannot determine which sheet contains generator data")
+    if(yr<2008) {
+      writeLines("This is expected. The data don't exist prior to 2008. Skipping")
+      next
+    } else {
+      writeLines("The file contains the following sheet names:")
+      for(s in sheet.list) {
+        writeLines(s)
+      }
+      stop("Aborting") 
     }
-    stop("Aborting")
   }
   
   ##Deterine the first row of the data table. I do this by reading the first 20 rows of column 1
-  print(str_c("Loading sheet ", sheet.name))
+  writeLines(str_c("Loading sheet ", sheet.name))
   read_excel(
     file.path(infile.path,infile.name),
     sheet=sheet.name,
@@ -122,11 +152,8 @@ for(yr in startYear:endYear) {
       contains("Month")
     ) %>% 
     #All "month" terms should be numeric
-    mutate_at(
-      vars(contains("Month")),
-      as.double
-    ) %>%
     mutate(
+      across(.cols=contains("Month"),.fns=as.double),
       year = yr
     ) %>%
     bind_rows(all.data) -> all.data
@@ -138,8 +165,10 @@ all.data %>%
     names_to = c(".value","Month"),
     names_sep = " Month"
   ) %>%
-  mutate(Month = as.integer(Month),
-         Month = ymd(str_c(year,Month,"1",sep="-"))) %>%
+  mutate(
+    Month = as.integer(Month),
+    Month = ymd(str_c(year,Month,"01",sep="-"))
+    ) %>%
   select(
     orispl.code,eia.generator.id, Month, -year, everything()
   ) %>%
@@ -148,23 +177,45 @@ all.data %>%
   ) %>%
   arrange(orispl.code,eia.generator.id, Month) -> all.data
 
-if(!dir.exists(file.path(eia923.path,"data","out",eia923.version))) {
-  dir.create(file.path(eia923.path,"data","out",eia923.version))
-  dir.create(file.path(eia923.path,"data","out",eia923.version,"R"))
-  dir.create(file.path(eia923.path,"data","out",eia923.version,"Stata"))
+
+
+#######################################
+#######################################
+## Create output files
+#######################################
+#######################################
+
+#########################
+## Create output data folders
+#########################
+path.out = file.path(path.project,"data","out","EIA-Form923")
+dir.create(path.out,recursive=TRUE,showWarnings = FALSE)
+
+########################
+## Write RDS files
+########################
+if("rds" %in% project.local.config$output$formats) {
+  dir.create(file.path(path.out,"rds"),recursive=TRUE,showWarnings = FALSE)
+  
+  all.data %>%
+    write_rds(
+      file.path(path.out,"rds","eia_923_generator.rds.gz"), 
+      compress="gz"
+    )
 }
 
-all.data %>%
-  write_rds(
-    file.path(eia923.path,"data","out",eia923.version,"R","EIA923_Generator.rds.gz"), 
-    compress="gz"
-  ) %>%
-  rename_all(
-    .funs=list(~str_replace_all(.,"[\\.\\s]","_"))
-  ) %>%
-  write_dta(
-    file.path(eia923.path,"data","out",eia923.version,"Stata","EIA923_Generator.dta")
-  )
+if("dta" %in% project.local.config$output$formats) {
+  dir.create(file.path(path.out,"stata"),recursive=TRUE,showWarnings = FALSE)
+  
+  all.data %>%
+    rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
+    write_dta(
+      file.path(path.out,"stata","eia_923_generator.dta")
+    )
+}
+
+
+
 
 
 
