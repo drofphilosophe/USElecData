@@ -54,7 +54,6 @@ facility.coltypes = cols(
   `FIPS Code` = col_integer(),
   `Latitude` = col_double(),
   `Longitude` = col_double(),
-  `Commercial Operation Date` = col_date(format="%Y-%m-%d"),
   `Max Hourly HI Rate (mmBtu/hr)` = col_double()
 )
 
@@ -65,6 +64,7 @@ for(yr in year.start:year.end) {
     file.path(path.project,"data", "source", "EPA-CEMS","facility_data", glue("FacilityData_{yr}.csv.gz")),
     col_types = facility.coltypes
   ) %>% 
+    mutate(`Commercial Operation Date` = ymd(`Commercial Operation Date`)) %>%
     rename(
       state.abriv = State,
       plant.name.cems = `Facility Name` ,
@@ -104,14 +104,16 @@ for(yr in year.start:year.end) {
 ## This is facility info that is no longer reported in CAMPD
 #########################################
 read_csv(
-  file.path(here("src","EPA-CEMS","legacyFacilityData.csv")),
+  file.path(here("src","EPA-CEMS","legacyFacilityData.csv.gz")),
   col_types = facility.coltypes
 ) %>% 
+  mutate(`Commercial Operation Date` = mdy(`Commercial Operation Date`)) %>%
   rename(
     state.abriv = State,
     plant.name.cems = `Facility Name` ,
     orispl.code = `Facility ID`,
     cems.unit.id = `Unit ID`,
+    year = Year,
     associated.stacks = `Associated Stacks`,
     epa.air.programs = `Program Code` ,
     epa.region = `EPA Region` ,
@@ -135,10 +137,9 @@ read_csv(
     operating.status = `Operating Status` ,
     max.heat.input.mmbtuperhr = `Max Hourly HI Rate (mmBtu/hr)`,
     associated.generators.capacity = `Associated Generators & Nameplate Capacity (MWe)`
-  ) %>%
-  crossing(year = year.start:year.end) -> legacy.facility
+  ) -> legacy.facility
 
-#Detect legacy facilitiy entries that happen to be in our data
+#Detect legacy facility entries that happen to be in our data
 #Remove them and bind the remainder to the facility data
 legacy.facility %>%
   anti_join(facility,by=c("orispl.code","cems.unit.id","year")) %>%
