@@ -74,27 +74,52 @@ headers = {
 }
 
 #Create an SSL context that skips certificate verification
+#For some reason the API fails Python verification
 ctx = ssl.create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 
+#Read the last time this script was run
+lastCollectedPath = os.path.join(outPathBase,"facilityDataLastCollected.txt")
+lastCollectedTime = None
+
+if os.path.isfile(lastCollectedPath) :
+    with open(lastCollectedPath,"r") as infile :
+        lastCollectedTime = dt.datetime.fromisoformat(infile.read())
+    print("Data last downloaded at",lastCollectedTime)
+else :
+    #If the file doesn't exist, force recollection of all the files
+    lastCollectedTime = dt.datetime(1900,1,1,0)
+    print("Unable to find last download time. Downloading all files")
+
+
+
 
 for yr in range(startYear,endYear + 1) :
+    outfilePath = os.path.join(outPathBase,"FacilityData_{year}.csv.gz".format(year=yr))
 
-    URL = "https://api.epa.gov/easey/facilities-mgmt/facilities/attributes/stream?&year={year}".format(year=yr)
+    #If the output file exists and it was downloaded sufficient recently, don't do it again
+    #"Sufficiently recent" is at least four months after the end of the year in which the data were contained
+    if os.path.isfile(outfilePath) and lastCollectedTime > dt.datetime(yr,12,31) + dt.timedelta(days=124) :
+        print("We already have an up-to-date facility file for",yr,". Skipping.")
+    else :
+        URL = "https://api.epa.gov/easey/facilities-mgmt/facilities/attributes/stream?&year={year}".format(year=yr)
 
-    print("Getting Facility data for",yr)
-    #Construct a request
-    req = urllib.request.Request(URL,None,headers)
+        print("Getting Facility data for",yr)
+        #Construct a request
+        req = urllib.request.Request(URL,None,headers)
 
-    with io.BytesIO() as buf :
-        print("\tDownloading")
-        with urllib.request.urlopen(req,context=ctx) as resp :
-            buf.write(resp.read())
+        with io.BytesIO() as buf :
+            print("\tDownloading")
+            with urllib.request.urlopen(req,context=ctx) as resp :
+                buf.write(resp.read())
 
-        print("\tWriting output")
-        buf.seek(0)
-        with gzip.open(os.path.join(outPathBase,"FacilityData_{year}.csv.gz".format(year=yr)),"w") as fout :
-            fout.write(buf.read())
+            print("\tWriting output file")
+            buf.seek(0)
+            with gzip.open(outfilePath,"w") as fout :
+                fout.write(buf.read())
 
-    raise Exception("STOPPING")
+
+ #Write out the update time
+with open(lastCollectedPath,"w") as outfile :
+    outfile.write(dt.datetime.now().isoformat())
