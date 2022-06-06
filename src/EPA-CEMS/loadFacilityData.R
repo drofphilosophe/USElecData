@@ -3,6 +3,7 @@ library(tidyverse)
 library(lubridate)
 library(sf)
 library(curl)
+library(glue)
 library(haven)
 library(here)
 library(yaml)
@@ -25,6 +26,13 @@ path.facility.intermediate = file.path(path.project, "data","intermediate", "EPA
 path.facility.out = file.path(path.project, "data","out", "EPA-CEMS","facility_data")
 path.facility.diagnostics = file.path(path.project,"diagnostics","EPA-CEMS","facility_data")
 
+year.start <- as.integer(project.config$sources$`EPA-CEMS`$`start-year`)
+if(is.null(project.config$sources$`EPA-CEMS`$`end-year`)) {
+  year.end <- year(today())
+} else {
+  year.end <- as.integer(project.config$sources$`EPA-CEMS`$`end-year`)
+}
+
 
 for(f in c(path.facility.intermediate,path.facility.out,path.facility.diagnostics)) {
   if(!dir.exists(f)) dir.create(f,recursive=TRUE)
@@ -40,53 +48,101 @@ planar.crs = st_crs(4326)
 ######################
 facility.coltypes = cols(
   .default = col_character(),
-  `Facility ID (ORISPL)` = col_integer(),
+  `Facility ID` = col_integer(),
   Year = col_integer(),
   `EPA Region` = col_integer(),
   `FIPS Code` = col_integer(),
-  `Facility Latitude` = col_double(),
-  `Facility Longitude` = col_double(),
-  `Commercial Operation Date` = col_date(format="%m/%d/%Y"),
-  `Max Hourly HI Rate (MMBtu/hr)` = col_double()
+  `Latitude` = col_double(),
+  `Longitude` = col_double(),
+  `Commercial Operation Date` = col_date(format="%Y-%m-%d"),
+  `Max Hourly HI Rate (mmBtu/hr)` = col_double()
 )
 
+facility <- tibble()
+for(yr in year.start:year.end) {
+  writeLines(glue("\nLoading year {yr}"))
+  read_csv(
+    file.path(path.project,"data", "source", "EPA-CEMS","facility_data", glue("FacilityData_{yr}.csv.gz")),
+    col_types = facility.coltypes
+  ) %>% 
+    rename(
+      state.abriv = State,
+      plant.name.cems = `Facility Name` ,
+      orispl.code = `Facility ID`,
+      cems.unit.id = `Unit ID`,
+      associated.stacks = `Associated Stacks`,
+      year = Year,
+      epa.air.programs = `Program Code` ,
+      epa.region = `EPA Region` ,
+      nerc.region = `NERC Region` ,
+      county.name = County ,
+      county.code = `County Code` , 
+      county.fips = `FIPS Code` ,
+      source.category = `Source Category` ,
+      plant.latitude = `Latitude` ,
+      plant.longitude = `Longitude` ,
+      plant.owner = `Owner/Operator` ,
+      SO2.phase = `SO2 Phase` ,
+      NOx.phase = `NOx Phase` ,
+      fuel.type.1 = `Primary Fuel Type` ,
+      fuel.type.2 = `Secondary Fuel Type` ,
+      SO2.controls = `SO2 Controls` ,
+      NOx.controls = `NOx Controls` ,
+      PM.controls = `PM Controls` ,
+      Hg.controls = `Hg Controls` ,
+      operation.date = `Commercial Operation Date` ,
+      operating.status = `Operating Status` ,
+      max.heat.input.mmbtuperhr = `Max Hourly HI Rate (mmBtu/hr)`,
+      associated.generators.capacity = `Associated Generators & Nameplate Capacity (MWe)`
+    ) %>%
+    bind_rows(facility) -> facility
+}
 
-read_tsv(
-  file.path(path.project,"data", "source", "EPA-CEMS","facility_data", "FacilityData.txt.gz"),
+
+#########################################
+## Load Legacy Facility Data
+## This is facility info that is no longer reported in CAMPD
+#########################################
+read_csv(
+  file.path(here("src","EPA-CEMS","legacyFacilityData.csv")),
   col_types = facility.coltypes
 ) %>% 
   rename(
     state.abriv = State,
     plant.name.cems = `Facility Name` ,
-    orispl.code = `Facility ID (ORISPL)`,
+    orispl.code = `Facility ID`,
     cems.unit.id = `Unit ID`,
     associated.stacks = `Associated Stacks`,
-    year = Year,
-    epa.air.programs = `Program(s)` ,
+    epa.air.programs = `Program Code` ,
     epa.region = `EPA Region` ,
     nerc.region = `NERC Region` ,
     county.name = County ,
     county.code = `County Code` , 
     county.fips = `FIPS Code` ,
     source.category = `Source Category` ,
-    plant.latitude = `Facility Latitude` ,
-    plant.longitude = `Facility Longitude` ,
-    plant.owner = Owner ,
-    plant.operator = Operator ,
-    representative.primary = `Representative (Primary)` ,
-    representative.secondary = `Representative (Secondary)` ,
+    plant.latitude = `Latitude` ,
+    plant.longitude = `Longitude` ,
+    plant.owner = `Owner/Operator` ,
     SO2.phase = `SO2 Phase` ,
     NOx.phase = `NOx Phase` ,
-    fuel.type.1 = `Fuel Type (Primary)` ,
-    fuel.type.2 = `Fuel Type (Secondary)` ,
-    SO2.controls = `SO2 Control(s)` ,
-    NOx.controls = `NOx Control(s)` ,
-    PM.controls = `PM Control(s)` ,
-    Hg.controls = `Hg Control(s)` ,
+    fuel.type.1 = `Primary Fuel Type` ,
+    fuel.type.2 = `Secondary Fuel Type` ,
+    SO2.controls = `SO2 Controls` ,
+    NOx.controls = `NOx Controls` ,
+    PM.controls = `PM Controls` ,
+    Hg.controls = `Hg Controls` ,
     operation.date = `Commercial Operation Date` ,
     operating.status = `Operating Status` ,
-    max.heat.input.mmbtuperhr = `Max Hourly HI Rate (MMBtu/hr)` 
-  ) -> facility
+    max.heat.input.mmbtuperhr = `Max Hourly HI Rate (mmBtu/hr)`,
+    associated.generators.capacity = `Associated Generators & Nameplate Capacity (MWe)`
+  ) %>%
+  crossing(year = year.start:year.end) -> legacy.facility
+
+#Detect legacy facilitiy entries that happen to be in our data
+#Remove them and bind the remainder to the facility data
+legacy.facility %>%
+  anti_join(facility,by=c("orispl.code","cems.unit.id","year")) %>%
+  bind_rows(facility) -> facility
 
 
 
@@ -106,10 +162,10 @@ facility %>%
   #filter(state.abriv != "HI") %>%
   group_by(orispl.code, year) %>%
   summarize(
-    MinLat = min(plant.latitude),
-    MinLong = min(plant.longitude),
-    MaxLat = max(plant.latitude),
-    MaxLong = max(plant.longitude),
+    MinLat = min(plant.latitude,na.rm=TRUE),
+    MinLong = min(plant.longitude,na.rm=TRUE),
+    MaxLat = max(plant.latitude,na.rm=TRUE),
+    MaxLong = max(plant.longitude,na.rm=TRUE),
     state.abriv = first(state.abriv),
     .groups="drop"
   ) %>%
@@ -120,10 +176,10 @@ facility %>%
   #Now group by just ORISPL
   group_by(orispl.code) %>%
   summarize(
-    MinLat = min(plant.latitude),
-    MinLong = min(plant.longitude),
-    MaxLat = max(plant.latitude),
-    MaxLong = max(plant.longitude),
+    MinLat = min(plant.latitude,na.rm=TRUE),
+    MinLong = min(plant.longitude,na.rm=TRUE),
+    MaxLat = max(plant.latitude,na.rm=TRUE),
+    MaxLong = max(plant.longitude,na.rm=TRUE),
     state.abriv = first(state.abriv)
   ) %>%
   mutate(
@@ -234,7 +290,7 @@ facility.geodata.with.tz %>%
 ##Update time zone information manually
 facility.geodata.with.tz %>%
   mutate(tz.name = case_when(
-    orispl.code == 880073 ~ "America/New_York",
+    orispl.code %in% c(3199, 10331, 10614, 10662, 10747, 50460, 880073) ~ "America/New_York",
     TRUE ~ tz.name
   )) -> facility.geodate.with.tz
 
@@ -286,7 +342,8 @@ rm(list=c("facility.bad.geodata",
 #specifying the programs governing the plant
 ##################################################
 facility %>%
-  distinct(epa.air.programs) -> program.list
+  distinct(epa.air.programs) %>%
+  drop_na() -> program.list
 
 #Count the number of commas
 program.list %>%
@@ -296,6 +353,7 @@ program.list %>%
 
 #Separate the comma separated list into a bunch of new fields
 program.list %>%
+  drop_na() %>%
   separate(
     epa.air.programs, 
     into=str_c("X.",1:program.count.max),
@@ -372,7 +430,8 @@ facility %>%
 #Merge the geocodes and time zones back into the facility data file
 facility %>%
   select(-plant.latitude,-plant.longitude) %>%
-  left_join(facility.geodata.with.tz, by="orispl.code") -> facility
+  left_join(facility.geodata.with.tz, by="orispl.code", suffix=c("",".yyyy")) %>%
+  select(-ends_with(".yyyy")) -> facility
 
 #Create a mapping between Olsen Name-Year pairs and the LST and LDT UTC offsets
 facility.geodata.with.tz %>%
@@ -436,7 +495,7 @@ facility %>%
 ## Write ouptut file
 #############################
 if("rds" %in% project.local.config$output$formats) {
-  dir.create(file.path(path.facility.out,"rds",showWarnings = FALSE))
+  dir.create(file.path(path.facility.out,"rds"),showWarnings = FALSE)
 
   facility %>%
     write_rds(file.path(path.facility.out,"rds","CEMS_Facility_Attributes.rds.bz2"), 
@@ -444,7 +503,7 @@ if("rds" %in% project.local.config$output$formats) {
 }
 
 if("dta" %in% project.local.config$output$formats) {
-  dir.create(file.path(path.facility.out,"stata",showWarnings = FALSE))
+  dir.create(file.path(path.facility.out,"stata"),showWarnings = FALSE)
 
   
   facility %>%

@@ -1,5 +1,5 @@
 ######################
-## repairFacilityData.py
+## DEPRICATED - repairFacilityData.py
 ##
 ## The AMPD interface occasionally reutrns facility data files that are
 ## not valid CSVs. Usually there is a misalignment in some rows.
@@ -7,6 +7,9 @@
 ## as a gzipped tab-separated value file. The python readers appear
 ## to be more robust that those in readr to the errors and create
 ## readable output files.
+##
+## With the full release of the CAMPD API this error no longer occurs
+## and this script is depricated.
 #######################
 import zipfile
 import gzip
@@ -14,6 +17,7 @@ import os
 import io
 import yaml
 import csv
+import datetime as dt
 
 #########################
 ## Load and register the configuration

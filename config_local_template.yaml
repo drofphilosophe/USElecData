@@ -8,3 +8,6 @@ output:
   formats:
     - rds
     - dta
+auth:
+  #An API key to the EPA's CAMPD interface
+  EPA-CAMPD-API-key:
