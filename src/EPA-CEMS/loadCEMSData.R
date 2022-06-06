@@ -6,6 +6,7 @@ library(sf)
 library(units)
 library(haven)
 library(magrittr)
+library(glue)
 library(here)
 library(yaml)
 
@@ -32,7 +33,8 @@ if(is.null(project.config$sources$`EPA-CEMS`$`end-year`)) {
   date.end <- ymd(str_c(project.config$sources$`EPA-CEMS`$`end-year`,"-12-31"))
 }
 
-
+#Set this flag to TRUE to rebuild all files
+REBUILD_FLAG = TRUE
 
 
 
@@ -87,6 +89,10 @@ tibble(
     Quarter = as.integer(str_sub(Name,11,11)),
   ) -> output.file.log
 
+if(REBUILD_FLAG) {
+  writeLines("The REBUILD_FLAG is set, so we will be rebuilding all output files")
+  output.file.log %>% mutate(mtime=ymd_hms("1900-01-01 0:00:00")) -> output.file.log
+}
 
 input.file.log %>%
   group_by(Year,Quarter) %>%
@@ -249,23 +255,27 @@ for(yr in year(date.start):year(date.end) ) {
       next
     }
     
-    output.file.log %>%
-      filter(Year == yr & Quarter == q) %>%
-      summarize(mtime = min(mtime)) %>%
-      pull(mtime) -> output.min.time
-    
-    #Check to see if we have an output file
-    #output.min.time will be Inf if there are no responsive files
-    #We've made it this far, so if no output file exists, we need to make one
-    if(output.min.time < Inf) {
-      #Compare the largest input file time to the smallest output file time
-      if(input.max.time < output.min.time) {
-        writeLines(str_c("Input files for ",yr,"Q",q," are all older than the output file."))
-        writeLines("It is up-to-date. Skipping")
-        next
+    #If REBUILD FLAG is TRUE then we don't need to look at the output files
+    if(REBUILD_FLAG) {
+      writeLines(glue("The REBUILD_FLAG is set. Replacing any existing files."))
+    } else {
+      output.file.log %>%
+        filter(Year == yr & Quarter == q) %>%
+        summarize(mtime = min(mtime)) %>%
+        pull(mtime) -> output.min.time
+      
+      #Check to see if we have an output file
+      #output.min.time will be Inf if there are no responsive files
+      #We've made it this far, so if no output file exists, we need to make one
+      if(output.min.time < Inf) {
+        #Compare the largest input file time to the smallest output file time
+        if(input.max.time < output.min.time) {
+          writeLines(str_c("Input files for ",yr,"Q",q," are all older than the output file."))
+          writeLines("It is up-to-date. Skipping")
+          next
+        }
       }
     }
-    
 
     
     #Print out where we are
@@ -373,7 +383,7 @@ for(yr in year(date.start):year(date.end) ) {
 
             ## There are cases where the wrong ORISPL code is reported for a 
             ## plant. We're going to match the ORISPL to our cannonical list
-            ## or ORISPL codes then deal with plants that don't match
+            ## of ORISPL codes then deal with plants that don't match
             
             ##Join cannonical ORISPL list
             data.raw %>%
@@ -561,7 +571,45 @@ for(yr in year(date.start):year(date.end) ) {
                 #Append to this.file
                 rbind(this.file) -> this.file
               
-            }          
+            }
+            
+            ###################
+            ## Repair missing emissions data
+            ###################
+            writeLines("Repairing missing or invalid emissions data")
+            this.file %>%
+              #Compute rates using emissions if the rate is missing or zero. Don't do this if heat input is zero
+              mutate(
+                SO2.rate.lbspermmbtu = if_else(
+                  heat.input.mmbtu > 0 & (is.na(SO2.rate.lbspermmbtu) | SO2.rate.lbspermmbtu < 0), 
+                  SO2.mass.lbs / heat.input.mmbtu, 
+                  SO2.rate.lbspermmbtu
+                  ),
+                NOx.rate.lbspermmbtu = if_else(
+                  heat.input.mmbtu > 0 & ( is.na(NOx.rate.lbspermmbtu) | NOx.rate.lbspermmbtu < 0), 
+                  NOx.mass.lbs / heat.input.mmbtu, 
+                  NOx.rate.lbspermmbtu
+                  ),
+                CO2.rate.tonspermmbtu = if_else(
+                  heat.input.mmbtu > 0 & (is.na(CO2.rate.tonspermmbtu) | CO2.rate.tonspermmbtu <= 0), 
+                  CO2.mass.tons / heat.input.mmbtu, 
+                  CO2.rate.tonspermmbtu
+                  ),
+                #CO2 rates should never be zero. Could be true with the other rates
+                CO2.rate.tonspermmbtu = if_else(CO2.rate.tonspermmbtu <= 0, as.double(NA),CO2.rate.tonspermmbtu)
+              ) %>%
+              #Fill emissions rates down for each unit when there are NAs
+              group_by(orispl.code,cems.unit.id) %>% 
+              arrange(orispl.code,cems.unit.id,datetime.utc) %>%
+              fill(SO2.rate.lbspermmbtu, NOx.rate.lbspermmbtu, CO2.rate.tonspermmbtu, .direction="downup") %>%
+              #Impute emissions using rates and fuel
+              mutate(
+                SO2.mass.lbs = if_else(SO2.mass.lbs <= 0 | is.na(SO2.mass.lbs), SO2.rate.lbspermmbtu * heat.input.mmbtu, SO2.mass.lbs),
+                NOx.mass.lbs = if_else(NOx.mass.lbs <= 0 | is.na(NOx.mass.lbs), NOx.rate.lbspermmbtu * heat.input.mmbtu, NOx.mass.lbs),
+                CO2.mass.tons = if_else(CO2.mass.tons <= 0 | is.na(CO2.mass.tons), CO2.rate.tonspermmbtu * heat.input.mmbtu, CO2.mass.tons)
+              ) -> this.file
+            
+            
             #Append to previous data
             this.file %>% 
               bind_rows(this.year) -> this.year
