@@ -14,7 +14,7 @@ Code in this foder depends on the following datasets or external files:
 To build this dataset run scripts in the following order:
 
 1. `downloadCEMSData.py`
-2. `downloadFacilityData.py` - NOTE: This currently doesn't work but will hopefully be fixed with the CAMPD API rollout. Instead, download the following bookmarked AMPD query as a CSV. <https://ampd.epa.gov/ampd/#?bookmark=22021>
+2. `downloadFacilityData.py`
 3. `loadFacilityData.R`
 4. `loadCEMSData.R`
 5. `CEMStoEIAMap.R`
@@ -27,3 +27,9 @@ Scripts in this folder will create the following output files:
 2. A data file of CEMS facility attributes in `data/out/EPA-CEMS/facility_data`
 3. Hourly, daily, and monthly genetation, fuel consumption, and emissions by CEMS unit in `data/out/EPA-CEMS/hourly`, `data/out/EPA-CEMS/daily`, and `data/out/EPA-CEMS/monthly`, respectively
 4. Ratios of Net Generation (as measured by EIA 923) to reported CEMS Gross Generation by CEMS unit and month in `data/out/crosswalks/rds/EIANet_to_CEMSGross_Ratios.R`. Note that while true net generation should always be less than gross, many generators do not report gross generation from generating units that are not connected to emissions control equipment, e.g., the steam turbine part of a combined cycle gas turbine. EIA data includes net generation from all generating units, and there are many cases where the net generation reported to EIA exceeds the gross generation reported to CEMS. 
+
+## Other Files
+
+This folder contains the following additional files required to build a complete dataset:
+1. `legacyFacilityData.csv.gz` - This is a facility data file in gzipped CSV format that I downloaded in 2022 and modified to match the modern CAMPD format. Some facilities reporting into CEMS are no longer included in the CAMPD facility data and this file contains information for those facilites. Unfortunately, there is no way to reconstruct this information from modern primary sources. This file is loaded by `loadFacilityData.R` to augment the facility data from CAMPD. Information is only used when there is no corrisponding entry for a generating unit in the CAMPD facility data files. 
+2. `retconSourceFileDB.py` - A python script that will construct the source data file listing from an existing foldering containing CEMS source data. `downloadCEMSData.py` constructs/modifies the source file listing as it downloads files and `loadCEMSData.R` reads it to determine which files need to be procesed. Use this script to construct a source file listing on data you've already downloaded. Anyone building the data from scratch will not need to run this script.
