@@ -117,7 +117,7 @@ crosswalk %>%
 
 eia860.fueltype %>%
   full_join(crosswalk.eia, by=c("orispl.code","eia.generator.id")) %>%
-  replace_na(list(unit.group=0L)) %>%
+  replace_na(list(unit.group="0")) %>%
   mutate(year = as.integer(year)) %>%
   arrange(year,orispl.code,unit.group,fuel.type) %>%
   group_by(year,orispl.code,unit.group) %>%
@@ -301,16 +301,16 @@ combined.operations %>%
   rename(
     net.to.gross.ratio = eia.to.cems
   ) %>%
-  group_by(orispl.code,unit.group) %>%
   #Expand the time series for each plant to the full date range to the current date
   complete(
     nesting(orispl.code,unit.group),
     Month = seq.Date(ymd(str_c(year.start,"01","01",sep="-")),today(),by="month")
   ) %>%
+  group_by(orispl.code,unit.group) %>%
   arrange(orispl.code,unit.group,Month) %>%
   #Compute a rolling average net-to-gross as well
   mutate(
-    #Convert absurd values to missings
+    #Convert absurd values to NAs
     net.to.gross.ratio = if_else(between(net.to.gross.ratio,0.25,3),net.to.gross.ratio,as.double(NA)),
     #Compute some rolling averages
     ma.full = (lag(eia.mwh) + eia.mwh + lead(eia.mwh)) / (lag(cems.mwh) + cems.mwh + lead(cems.mwh)),
@@ -342,14 +342,8 @@ combined.operations %>%
   ) %>%
   group_by(orispl.code,cems.unit.id) %>%
   arrange(orispl.code,cems.unit.id,Month) %>%
-  #Replace NAs with the lagged value
-  mutate(
-    net.to.gross.ratio = if_else(
-      is.na(net.to.gross.ratio),
-      lag(net.to.gross.ratio),
-      net.to.gross.ratio
-    )
-  ) %>%
+  #Replace NAs with the lagged value or the lead value
+  fill(net.to.gross.ratio,.direction="downup") %>%
   ungroup() %>%
   arrange(orispl.code,cems.unit.id,Month) -> net.2.gross.ratios
 
