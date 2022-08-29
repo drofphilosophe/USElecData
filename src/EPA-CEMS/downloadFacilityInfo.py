@@ -103,8 +103,9 @@ for yr in range(startYear,endYear + 1) :
     if os.path.isfile(outfilePath) and lastCollectedTime > dt.datetime(yr,12,31) + dt.timedelta(days=124) :
         print("We already have an up-to-date facility file for",yr,". Skipping.")
     else :
-        URL = "https://api.epa.gov/easey/facilities-mgmt/facilities/attributes/stream?&year={year}".format(year=yr)
-
+        #URL = "https://api.epa.gov/easey/facilities-mgmt/facilities/attributes/stream?&year={year}".format(year=yr)
+        URL = f"https://api.epa.gov/easey/streaming-services/facilities/attributes?year={yr}"
+        
         print("Getting Facility data for",yr)
         #Construct a request
         req = urllib.request.Request(URL,None,headers)
