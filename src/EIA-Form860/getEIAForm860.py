@@ -15,7 +15,7 @@ import datetime as dt
 #########################
 #Determine the path to this script
 scriptPath, _ = os.path.split(os.path.realpath(__file__))
-projectRoot = os.path.join(scriptPath,"..","..")
+projectRoot = os.path.abspath(os.path.join(scriptPath,"..",".."))
 
 #Load the config.yaml and config_local.yaml configuration Files
 with open(os.path.join(projectRoot,"config.yaml")) as yamlin :
