@@ -1,0 +1,11 @@
+name: USElecData
+channels:
+  - conda-forge
+dependencies:
+  - yaml
+  - pytz
+  - r-base
+  - r-essentials
+  - r-here
+  - r-yaml
+  - r-glue

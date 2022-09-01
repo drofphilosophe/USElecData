@@ -46,13 +46,17 @@ required.libraries = c(
 #The following scripts cannot be installed 
 #by Anaconda when it builds an R environment
 to.install.libraries = c(
-  "fuzzyjoin", 
-  "assertr"
+  "usmap", #r-usmap
+  "fuzzyjoin", #NOT IN CONDA
+  "assertr", #NOT IN CONDA
+  "units", #r-units
+  "matrixStats", #r-matrixstats
+  "sf" #r-sf
 )
 
 #Install needed libraries
 for(lib in to.install.libraries) {
-  install.packages(lib)
+  install.packages(lib,repos = "http://cran.us.r-project.org")
 }
 
 #Write a file detailing the R configuration
