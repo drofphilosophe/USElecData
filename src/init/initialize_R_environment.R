@@ -55,8 +55,14 @@ to.install.libraries = c(
 )
 
 #Install needed libraries
-for(lib in to.install.libraries) {
-  install.packages(lib,repos = "http://cran.us.r-project.org")
+for(lib in required.libraries) {
+  x <- try(packageVersion(lib))
+  if(inherits(x,"try-error")) {
+    print(glue("Installing package {lib}"))
+    install.packages(lib,repos = "http://cran.us.r-project.org") 
+  } else {
+    print(glue("We have package {lib}, no need to install"))
+  }
 }
 
 #Write a file detailing the R configuration
@@ -90,4 +96,12 @@ write_lines(
 
 for(lib in required.libraries) {
   write_lines(glue("{lib}\t\t{packageVersion(lib)}"),file.out,append=TRUE)
+}
+
+####################
+## Return a zero exit status if we're running 
+## in non-interactive mode
+####################
+if(interactive() == FALSE) {
+  quit(save="no",status=0)
 }
