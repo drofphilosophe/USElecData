@@ -2,7 +2,7 @@ name: USElecData
 channels:
   - conda-forge
 dependencies:
-  - yaml
+  - pyyaml
   - pytz
   - r-base
   - r-essentials

@@ -9,37 +9,28 @@ import zipfile
 import os
 import io
 import yaml
+import USElecDataClass
 
 #########################
-## Load and register the configuration
+## Load the configuration
 #########################
-#Determine the path to this script
-scriptPath, _ = os.path.split(os.path.realpath(__file__))
-projectRoot = os.path.join(scriptPath,"..","..")
+us_ed = USElecDataClass.USElecDataClass()
 
-#Load the config.yaml and config_local.yaml configuration Files
-with open(os.path.join(projectRoot,"config.yaml")) as yamlin :
-    projectConfig = yaml.safe_load(yamlin)
-
-with open(os.path.join(projectRoot,"config_local.yaml")) as yamlin :
-    projectLocalConfig = yaml.safe_load(yamlin)
-
-outputRoot = projectLocalConfig["output"]["path"]
-outputFolder = os.path.join(outputRoot,"data","source","tz-info")
+outputFolder = os.path.join(us_ed.outputRoot,"data","source","tz-info")
 #Construct the directory tree if it doesn't already exist
-if os.path.isdir(outputRoot) :
+if os.path.isdir(us_ed.outputRoot) :
     if not os.path.isdir(outputFolder) :
         os.makedirs(outputFolder)
 
 else :
     raise FileNotFoundError(
-    "The data output defined path in the configuration file does not exist\n" +
-    "Expecing path: " + outputRoot
-    )
+        "The data output defined path in the configuration file does not exist\n" +
+        "Expecing path: " + us_ed.outputRoot
+        )
 
 #Path to EPA hourly CEMS data. Subfolders should be years
-repositoryName = projectConfig["sources"]["tz-info"]["repository-name"]
-repositoryVersion = projectConfig["sources"]["tz-info"]["release"]
+repositoryName = us_ed.globalConfig["sources"]["tz-info"]["repository-name"]
+repositoryVersion = us_ed.globalConfig["sources"]["tz-info"]["release"]
 
 
 ############################
