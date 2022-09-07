@@ -207,6 +207,8 @@ def processPackage(us_ed,sp_args) :
     elif ext == ".gz" and os.path.splitext(filename_base) == "tar" :
         print("Creating gzipped TAR archive")
         archive_type = "gztar"
+        print("This format is currently unsupported.")
+        sys.exit(-1)
     else :
         print("Cannot determine the archive type from the file extension",ext)
         print("Proposed file name:", sp_args.filename)
@@ -230,7 +232,9 @@ def processPackage(us_ed,sp_args) :
         with zipfile.ZipFile(buf,mode="w") as zipout :                   
             #Iterate the filelist
             for walker in filelist :
+                #Extract the folder name
                 path = walker[0]
+                #Iterate the files in this folder
                 for f in walker[2] :
                     if "." + export_files in f :
                         fp = os.path.join(path,f)
@@ -241,7 +245,7 @@ def processPackage(us_ed,sp_args) :
                         file_counter = file_counter + 1
                         
         #Rewind the buffer
-        print("Writing",file_counter,"files with a total of",buf.tell(),"bytes to\n",sp_args.filename)
+        print("Writing",file_counter,"files with a total of",buf.tell()/1024/1024,"GB to\n",sp_args.filename)
         buf.seek(0)
         with open(sp_args.filename,"wb") as fout :
             fout.write(buf.read())
