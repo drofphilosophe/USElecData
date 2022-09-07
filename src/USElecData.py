@@ -29,18 +29,11 @@ import os
 sys.path.insert(0, './lib')
 sys.path.insert(0,'./src/lib')
 import USElecDataClass
+import io
+import gzip
+#import tar
+import zipfile
 
-#scriptPath, _ = os.path.split(os.path.realpath(__file__))
-#projectRoot = os.path.join(scriptPath,"..")
-
-#Load the config.yaml and config_local.yaml configuration Files
-##with open(os.path.join(projectRoot,"config.yaml")) as yamlin :
-##    projectConfig = yaml.safe_load(yamlin)
-##
-##with open(os.path.join(projectRoot,"config_local.yaml")) as yamlin :
-##    projectLocalConfig = yaml.safe_load(yamlin)
-##
-##outputRoot = projectLocalConfig["output"]["path"]
 
 ################
 ## License
@@ -183,7 +176,81 @@ def processBuild(us_ed,sp_args) :
 
     print("Data build complete")
 
-      
+
+
+def processPackage(us_ed,sp_args) :
+    print(
+        "Packaging Data",
+        "",
+        "WARNING: Flags are currently not supported.",
+        sep="\n"
+    )
+
+    #Determine the output data format
+    if sp_args.data_format == "rds" :
+        print("Packing R format (.rds) files")
+        export_files = "rds"
+    elif sp_args.data_format == "dta" :
+        print("Packing Stata format (.dta) files")
+        export_files = "dta"
+    elif sp_args.data_format is None or sp_args.data_format == "" :
+        print("You must specify a data file format to export using the --data-format= option")
+        sys.exit(-1)
+    else :
+        print("Unknown export file format:",sp_args.data_format)
+    #Determine the file type we should export to
+    filename_base, ext = os.path.splitext(sp_args.filename)
+
+    if ext == ".zip" :
+        print("Creating Zip Archive")
+        archive_type = "zipfile"
+    elif ext == ".gz" and os.path.splitext(filename_base) == "tar" :
+        print("Creating gzipped TAR archive")
+        archive_type = "gztar"
+    else :
+        print("Cannot determine the archive type from the file extension",ext)
+        print("Proposed file name:", sp_args.filename)
+        sys.exit(-1)
+
+    #Check that we will be able to write to the eventual output file
+    filepath, filename = os.path.split(sp_args.filename)
+    if not os.path.isdir(filepath) :
+        print("The ouput path",filepath,"does not exist.")
+        sys.exit(-1)
+        if not os.access(sp_args.filename, os.W_OK) :
+            print("The output path is not writable. Check your permissions to the folder.")
+            sys.exit(-1)
+
+    #Walk the output directory
+    #Returns a list of (path, folders, files) tuples 
+    filelist = [f for f in os.walk(os.path.join(us_ed.outputRoot,"data","out"))]
+
+    with io.BytesIO() as buf :
+        file_counter = 0
+        with zipfile.ZipFile(buf,mode="w") as zipout :                   
+            #Iterate the filelist
+            for walker in filelist :
+                path = walker[0]
+                for f in walker[2] :
+                    if "." + export_files in f :
+                        fp = os.path.join(path,f)
+                        zipout.write(
+                            fp,
+                            arcname=os.path.relpath(fp,start=os.path.join(us_ed.outputRoot,"data","out"))
+                        )
+                        file_counter = file_counter + 1
+                        
+        #Rewind the buffer
+        print("Writing",file_counter,"files with a total of",buf.tell(),"bytes to\n",sp_args.filename)
+        buf.seek(0)
+        with open(sp_args.filename,"wb") as fout :
+            fout.write(buf.read())
+            
+        
+        
+
+
+
 HELP_EPILOG = "For additional information see https://github.com/drofphilosophe/USElecData"
 
 #This script is intended to be run only from the command line             
@@ -248,7 +315,7 @@ if __name__ == "__main__" :
         description="Create USElecData ouput data packages",
         epilog=HELP_EPILOG
         )
-    sp_package.add_argument("filename",type=argparse.FileType('wb'),help=".zip or .tar.gz file to export data to")
+    sp_package.add_argument("filename",type=str,help=".zip or .tar.gz file to export data to")
     sp_package.add_argument("--data-format",type=str,help="Data file format",choices=["rds","dta"])
     
 
@@ -325,8 +392,7 @@ if __name__ == "__main__" :
         print("Subcommand build not currently implemented")
         sys.exit(1)
     elif args.subcommand == "package" :
-        print("Subcommand package not currently implemented")
-        sys.exit(1)
+        processPackage(us_ed,args)
     else :
         print(f"Unknown subcommand {args.subcommand}. This should never happen")
         raise Exception("Unknown subcommand")
