@@ -392,10 +392,12 @@ if __name__ == "__main__" :
     elif args.subcommand == "source" :
         processSource(us_ed,args)
     elif args.subcommand == "build" :
-        print("Subcommand build not currently implemented")
-        sys.exit(1)
+        processBuild(us_ed,args) :
     elif args.subcommand == "package" :
         processPackage(us_ed,args)
+    elif args.subcommand == "delete" :
+        print("Subcommand build not currently implemented")
+        sys.exit(1))
     else :
         print(f"Unknown subcommand {args.subcommand}. This should never happen")
         raise Exception("Unknown subcommand")
