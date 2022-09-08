@@ -4,6 +4,8 @@
 import yaml
 import os
 import sys
+import datetime
+import importlib.metadata
 
 class USElecDataClass :
 
@@ -319,6 +321,21 @@ class USElecDataClass :
     ########################
     def init_environment(self) :
         self.write_local_config()
+
+        ################
+        ## Write information about Python and the associated packages to a file
+        ################
+        with open(os.path.join(self.outputRoot,"Python-Environment-Configuration.txt"),"w") as fout :
+            fout.write("USElecData\n")
+            fout.write("Code Version: " + str(self.globalConfig["version-info"]["version-number"]) + "\n")
+            fout.write("Code Version Date: " + str(self.globalConfig["version-info"]["version-number"]) + "\n")
+            fout.write("Generated: " + str(datetime.date.today()) + "\n")
+            fout.write("\nPython Environment Configuration\n\n")
+            fout.write("Python Version Information: " + sys.version + "\n\n")
+            fout.write("Package Versions for non-Conda base packages\n")
+            for p in ['pyyaml','pytz'] :
+                fout.write(p + ": " + importlib.metadata.version(p) + "\n")
+            
 
         self.run_r_script(os.path.join("src","init","initialize_R_environment.R"))
                           

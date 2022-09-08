@@ -227,28 +227,27 @@ def processPackage(us_ed,sp_args) :
     #Returns a list of (path, folders, files) tuples 
     filelist = [f for f in os.walk(os.path.join(us_ed.outputRoot,"data","out"))]
 
-    with io.BytesIO() as buf :
-        file_counter = 0
-        with zipfile.ZipFile(buf,mode="w") as zipout :                   
-            #Iterate the filelist
-            for walker in filelist :
-                #Extract the folder name
-                path = walker[0]
-                #Iterate the files in this folder
-                for f in walker[2] :
-                    if "." + export_files in f :
-                        fp = os.path.join(path,f)
-                        zipout.write(
-                            fp,
-                            arcname=os.path.relpath(fp,start=os.path.join(us_ed.outputRoot,"data","out"))
-                        )
-                        file_counter = file_counter + 1
-                        
-        #Rewind the buffer
-        print("Writing",file_counter,"files with a total of",buf.tell()/1024/1024,"GB to\n",sp_args.filename)
-        buf.seek(0)
-        with open(sp_args.filename,"wb") as fout :
-            fout.write(buf.read())
+    file_counter = 0
+    with zipfile.ZipFile(sp_args.filename,mode="w") as zipout :
+        #######################
+        ## Add non-data files to the archive which describe the data build
+        #######################
+        for f in ["Python-Environment-Configuration.txt","R-Environment-Configuration.txt"] :
+            zipout.write(os.path.join(us_ed.outputRoot,f),arcname=f)
+        
+        #Iterate the filelist
+        for walker in filelist :
+            #Extract the folder name
+            path = walker[0]
+            #Iterate the files in this folder
+            for f in walker[2] :
+                if "." + export_files in f :
+                    fp = os.path.join(path,f)
+                    zipout.write(
+                        fp,
+                        arcname=os.path.relpath(fp,start=os.path.join(us_ed.outputRoot,"data","out"))
+                    )
+                    file_counter = file_counter + 1
             
         
         
