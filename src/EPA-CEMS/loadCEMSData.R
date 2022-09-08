@@ -682,14 +682,14 @@ for(yr in year(date.start):year(date.end) ) {
         mutate(date.utc = as_date(datetime.utc)) %>%
         group_by(orispl.code, cems.unit.id, date.utc) %>%
         summarize(
-          elec.load.mwh = sum(gross.load),
-          steam.load.mmbtu = sum(.97*steam.load),
-          total.heat.input.mmbtu = sum(heat.input.mmbtu),
-          elec.heat.input.mmbtu = sum(heat.input.mmbtu - .97*steam.load),
-          operational.time = sum(operational.time),
-          SO2.mass.lbs = sum(SO2.mass.lbs),
-          NOx.mass.lbs = sum(NOx.mass.lbs),
-          CO2.mass.tons = sum(CO2.mass.tons),
+          elec.load.mwh = sum(gross.load,na.rm=TRUE),
+          steam.load.mmbtu = sum(.97*steam.load,na.rm=TRUE),
+          total.heat.input.mmbtu = sum(heat.input.mmbtu,na.rm=TRUE),
+          elec.heat.input.mmbtu = sum(heat.input.mmbtu - .97*steam.load,na.rm=TRUE),
+          operational.time = sum(operational.time,na.rm=TRUE),
+          SO2.mass.lbs = sum(SO2.mass.lbs,na.rm=TRUE),
+          NOx.mass.lbs = sum(NOx.mass.lbs,na.rm=TRUE),
+          CO2.mass.tons = sum(CO2.mass.tons,na.rm=TRUE),
           .groups="drop"
         ) -> this.daily
       
@@ -721,14 +721,14 @@ for(yr in year(date.start):year(date.end) ) {
         ) %>%
         group_by(orispl.code, cems.unit.id, month) %>%
         summarize(
-          elec.load.mwh = sum(gross.load),
-          steam.load.mmbtu = sum(.97*steam.load),
-          total.heat.input.mmbtu = sum(heat.input.mmbtu),
-          elec.heat.input.mmbtu = sum(heat.input.mmbtu - .97*steam.load),
-          operational.time = sum(operational.time),
-          SO2.mass.lbs = sum(SO2.mass.lbs),
-          NOx.mass.lbs = sum(NOx.mass.lbs),
-          CO2.mass.tons = sum(CO2.mass.tons),
+          elec.load.mwh = sum(gross.load,na.rm=TRUE),
+          steam.load.mmbtu = sum(.97*steam.load,na.rm=TRUE),
+          total.heat.input.mmbtu = sum(heat.input.mmbtu,na.rm=TRUE),
+          elec.heat.input.mmbtu = sum(heat.input.mmbtu - .97*steam.load,na.rm=TRUE),
+          operational.time = sum(operational.time,na.rm=TRUE),
+          SO2.mass.lbs = sum(SO2.mass.lbs,na.rm=TRUE),
+          NOx.mass.lbs = sum(NOx.mass.lbs,na.rm=TRUE),
+          CO2.mass.tons = sum(CO2.mass.tons,na.rm=TRUE),
           .groups="drop"
         ) -> this.monthly
       
