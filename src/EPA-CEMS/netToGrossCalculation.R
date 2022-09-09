@@ -302,8 +302,8 @@ combined.operations %>%
     net.to.gross.ratio = eia.to.cems
   ) %>%
   #Expand the time series for each plant to the full date range to the current date
+  group_by(orispl.code,unit.group) %>%
   complete(
-    nesting(orispl.code,unit.group),
     Month = seq.Date(ymd(str_c(year.start,"01","01",sep="-")),today(),by="month")
   ) %>%
   group_by(orispl.code,unit.group) %>%
@@ -333,12 +333,13 @@ combined.operations %>%
       !is.na(lag(net.to.gross.ratio)) ~ lag(net.to.gross.ratio),
       #If all else fails. Missing
       TRUE ~ as.double(NA)
-    )
+    ),
+    year = year(Month)
   ) %>%
   ungroup() %>%
   #Join in the cems unit IDs
   full_join(
-    crosswalk.cems, by=c("orispl.code","unit.group")
+    crosswalk.cems, by=c("orispl.code","unit.group","year")
   ) %>%
   group_by(orispl.code,cems.unit.id) %>%
   arrange(orispl.code,cems.unit.id,Month) %>%
@@ -384,7 +385,26 @@ net.2.gross.ratios %>%
       TRUE ~ overall.mean.ratio 
     )
   ) %>%
-  select(orispl.code,cems.unit.id,Month,net.to.gross.ratio) -> net.2.gross.ratios
+  select(orispl.code,cems.unit.id,Month,net.to.gross.ratio) %>%
+  drop_na(orispl.code,cems.unit.id,Month) -> net.2.gross.ratios
+
+#Count net-to-gross ratios for each orispl/unit
+net.2.gross.ratios %>% 
+  group_by(orispl.code,cems.unit.id,Month) %>% 
+  summarize(n=n(),.groups="drop") %>% 
+  filter(n>1) %>%
+  nrow() -> row.count
+
+if(row.count > 0) {
+  writeLines("WARNING: Some Unit-Months have more than one net-to-gross ratio")
+  net.2.gross.ratios %>% 
+    group_by(orispl.code,cems.unit.id,Month) %>% 
+    summarize(n=n(),.groups="drop") %>% 
+    filter(n>1) %>%
+    print(n=20)
+} else {
+  writeLines("Unit-Month combinations are unique")
+}
 
 
 #I know the output folders exist because I loaded a crosswalk from this folder as part of this script
