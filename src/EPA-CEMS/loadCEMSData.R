@@ -410,7 +410,7 @@ for(yr in year(date.start):year(date.end) ) {
                 distinct(orispl.code, orispl.code.match) -> orispl.update 
               
               #Check to see if we can update any ORISPL codes by name
-              if( count(orispl.update) > 0) {
+              if( nrow(orispl.update) > 0) {
                 print("Updating the following ORISPL codes using facility name:")
                 print(orispl.update)
               
@@ -442,7 +442,7 @@ for(yr in year(date.start):year(date.end) ) {
                 group_by(orispl.code) %>% 
                 summarize(n=n()) -> bad.orispl
               
-              if(count(bad.orispl) > 0) {
+              if(nrow(bad.orispl) > 0) {
                 data.raw %>%
                   mutate(
                     orispl.code.new = case_when( 
