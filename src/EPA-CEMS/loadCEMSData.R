@@ -95,6 +95,10 @@ if(REBUILD_FLAG) {
 }
 
 input.file.log %>%
+  mutate(
+    Year = as.integer(Year),
+    Quarter = as.integer(Quarter)
+  ) %>%
   group_by(Year,Quarter) %>%
   summarize(
     last.download = max(mtime)
