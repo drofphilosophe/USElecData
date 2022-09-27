@@ -34,7 +34,7 @@ if(is.null(project.config$sources$`EPA-CEMS`$`end-year`)) {
 }
 
 #Set this flag to TRUE to rebuild all files
-REBUILD_FLAG = TRUE
+REBUILD_FLAG = FALSE
 
 
 
@@ -64,7 +64,13 @@ folder.list <- list.dirs(path.hourly.source, full.names = FALSE, recursive=FALSE
 #Load the file log and compile a list of source files
 #And their last downloaded times
 read_csv(
-  file.path(path.hourly.source,"SourceFileLog.csv")
+  file.path(path.hourly.source,"SourceFileLog.csv"),
+  col_types=cols(
+    Year = col_integer(),
+    filename = col_character(),
+    download_timestamp = col_datetime(),
+    md5hash = col_character()
+  )
 ) %>%
   rename(
     Name = filename,
@@ -80,14 +86,28 @@ read_csv(
 file.list = list.files(file.path(path.hourly.out,"rds"),pattern=".gz")
 file.times = file.info(file.path(path.hourly.out,"rds",file.list))$mtime
 
-tibble(
-  Name = file.list,
-  mtime = ymd_hms(file.times)
-) %>%
-  mutate(
-    Year = as.integer(str_sub(Name,6,9)),
-    Quarter = as.integer(str_sub(Name,11,11)),
-  ) -> output.file.log
+if(length(file.list) > 0) {
+  tibble(
+    Name = file.list,
+    mtime = ymd_hms(file.times)
+  ) %>%
+    mutate(
+      Year = as.integer(str_sub(Name,6,9)),
+      Quarter = as.integer(str_sub(Name,11,11)),
+    ) -> output.file.log  
+} else {
+  #If there are no output files make am output log tibble
+  #It will have zero rows at the end, but I seed it with data
+  #That will just be deleted. This establishes data types. 
+  tibble(
+    Name = "Not_a_file.txt",
+    mtime = ymh_hms("1969-07-20 20:17:40"),
+    Year = 1969L,
+    Quarter = 3L
+  ) %>%
+    filter(FALSE) -> output.file.log
+}
+
 
 if(REBUILD_FLAG) {
   writeLines("The REBUILD_FLAG is set, so we will be rebuilding all output files")
