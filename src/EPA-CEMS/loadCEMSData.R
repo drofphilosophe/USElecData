@@ -1,6 +1,5 @@
 rm(list=ls())
 library(tidyverse)
-library(tcltk)  #Provides a platform-independent progress bar
 library(lubridate)
 library(sf)
 library(units)
@@ -118,14 +117,19 @@ input.file.log %>%
   mutate(
     Year = as.integer(Year),
     Quarter = as.integer(Quarter)
-  ) %>%
+  ) %>% 
   group_by(Year,Quarter) %>%
   summarize(
     last.download = max(mtime)
   ) %>%
   full_join(output.file.log,by=c("Year","Quarter")) %>%
   rename(last.update = mtime) %>%
-  replace_na(list(last.download=as_datetime(Inf),last.update=as_datetime(-Inf))) %>%
+  replace_na(
+    list(
+      last.download=as_datetime(Inf),
+      last.update=as_datetime(-Inf)
+    )
+  ) %>% 
   drop_na() %>%
   filter(last.download > last.update) %>%
   select(Year,Quarter) -> pending.updates
@@ -339,13 +343,6 @@ for(yr in year(date.start):year(date.end) ) {
 
         #init a tibble to hold information about the file we've processed for this year
         files.loaded = tibble()
-        
-        #init a progress bar
-        progress.bar <- tkProgressBar(title = paste("Processing files from",yr,"M",m), 
-                                      min = 0,
-                                      max = length(file.list), 
-                                      width = 500)
-        progress.counter <- 0
         
         #Loop through all the files
         for(f in file.list) {
@@ -653,15 +650,8 @@ for(yr in year(date.start):year(date.end) ) {
           #Clean up. I do this for error checking
           rm(list=c("data.raw"))
           
-          #Update the progress bar
-          progress.counter<-progress.counter+1
-          setTkProgressBar(progress.bar, 
-                           progress.counter, 
-                           label=paste(progress.counter,"of",length(file.list),"files"))
         }
-        #Close the progress bar
-        close(progress.bar)
-        
+
         this.year %>%
           arrange(orispl.code, cems.unit.id, datetime.utc) %>%
           select(
