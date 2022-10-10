@@ -117,7 +117,7 @@ input.file.log %>%
   mutate(
     Year = as.integer(Year),
     Quarter = as.integer(Quarter)
-  ) %>% print(n=Inf)
+  ) %>% 
   group_by(Year,Quarter) %>%
   summarize(
     last.download = max(mtime)
