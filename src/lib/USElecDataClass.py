@@ -12,7 +12,7 @@ class USElecDataClass :
     #Name of the Anaconda environment in which all scripts should be run
     CONDA_ENV_NAME = "USElecData"
 
-    def __init__(self,warnings=True,ignore_environment=False) :
+    def __init__(self,warnings=True,ignore_environment=False,output_path=None) :
 
         self.warnings = warnings
         self.projectRoot = None         #Root of project code and config files
@@ -81,7 +81,11 @@ class USElecDataClass :
         #If not, we'll look in the current directory and
         #work our way up to the root looking for the config_local.yaml file
         self.projectRoot = os.getenv('USELECDATA_PROJECTROOT')
-        self.outputRoot = os.getenv('USELECDATA_OUTPUTROOT')
+        if output_path is not None :
+            self.outputRoot = output_path
+            print("Using user-supplied output data path:",output_path)
+        else :
+            self.outputRoot = os.getenv('USELECDATA_OUTPUTROOT')
         
         if self.projectRoot is None or self.outputRoot is None:
             self.envVarsSet = False
@@ -108,7 +112,7 @@ class USElecDataClass :
                                 "Global configuration file found with no corrisponding local configuration file.",
                                 "Run 'USElecData init' to initalize the local configuration file."
                             )
-                        self.projectRoot = self.config_path
+                        self.projectRoot, _ = os.path.split(self.config_path)
                 else :
                     #Move up one directory and try again
                     check_path = os.path.abspath(os.path.join(check_path,".."))
@@ -119,10 +123,12 @@ class USElecDataClass :
             if warnings :
                 print("I found a configuration file at\n",self.config_path)
 
-            self.config_local_path = os.path.join(check_path,"config_local.yaml")
+            self.config_local_path = os.path.join(self.projectRoot,"config_local.yaml")
 
 
             if self.projectRoot is None or self.outputRoot is None :
+                print("Code Root Folder:",self.projectRoot)
+                print("Data Root Folder:",self.outputRoot)
                 raise Exception("Cannot determine the path to project files. You should run the configuration script")
         else :
             self.envVarsSet = True
@@ -215,11 +221,12 @@ class USElecDataClass :
     ## Write a local configuration file
     ########################
     def write_local_config(self) :
-        if self.localConfigDirty == False :
-            if os.access(self.config_local_path,os.W_OK) :
+        if self.localConfigDirty == True :
+            if not os.path.isfile(self.config_local_path) or os.access(self.config_local_path,os.W_OK) :
                 with open(self.config_local_path,"w") as yamlout :
                     yaml.dump(self.localConfig,yamlout)
             else :
+                print("Proposed local config path:",self.config_local_path)
                 raise FileNotFoundError("Local configuration file location not set or is not writable")
 
 

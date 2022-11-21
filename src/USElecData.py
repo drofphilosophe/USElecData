@@ -104,39 +104,70 @@ def processSource(us_ed,sp_args) :
     print(
         "USElecData Processing Source Data",
         "",
-        "WARNING: Flags are currently not supported.",
-        "Updating existing data....",
+        "WARNING: Not all flags are currently supported.",
         sep="\n"
         )
-    
-    ################
-    ## tz-info
-    ################
-    print("Time zone information")
-    us_ed.run_python_script(os.path.join("src","tz-info","getTZInfo.py"))
+
+    ##Create a dictionary of source data product keys and descriptions
+    source_dict = {
+        'TZInfo' : 'Time zone information',
+        'EIA860' : "EIA Form 860 - Electricity Generator Data",
+        'EIA923' : "EIA Form 923 - Fuel and Generation for Electricity Consumption",
+        'CEMS' : "EPA Continuous Emissions Monitoring System (CEMS)"
+    }
+
+    #Respond with the list of data sources to --list
+    if sp_args.list :
+        for k in source_dict :
+            print(k,"\t",source_dict[k])
+
+    else :
+        print("Updating existing data....")
+        #Otherwise download
+        if len(sp_args.sources) == 0 or "all" in sp_args.sources :
+            sources = source_dict.keys()
+        else :
+            sources = []
+            for s in sp_args.sources :
+                if s in source_dict :
+                    sources += [s]
+                else :
+                    print("Unknown source data product",s)
+                    print("Exiting")
+                    sys.exit(-1)
+            
+        ################
+        ## tz-info
+        ################
+        if "TZInfo" in sources :
+            print(source_dict["TZInfo"])
+            us_ed.run_python_script(os.path.join("src","tz-info","getTZInfo.py"))
 
 
-    ################
-    ## EIA Form 860
-    ################
-    print("EIA Form 860 - Electricity Generator Data")
-    us_ed.run_python_script(os.path.join("src","EIA-Form860","getEIAForm860.py"))
+        ################
+        ## EIA Form 860
+        ################
+        if "EIA860" in sources :
+            print(source_dict["EIA860"])
+            us_ed.run_python_script(os.path.join("src","EIA-Form860","getEIAForm860.py"))
 
 
-    ################
-    ## EIA Form 923
-    ################
-    print("EIA Form 923 - Fuel and Generation for Electricity Consumption")
-    us_ed.run_python_script(os.path.join("src","EIA-Form923","getEIAForm923.py"))
+        ################
+        ## EIA Form 923
+        ################
+        if "EIA923" in sources :
+            print(source_dict["EIA923"])
+            us_ed.run_python_script(os.path.join("src","EIA-Form923","getEIAForm923.py"))
 
-    ################
-    ## EIA Form 923
-    ################
-    print("EPA CEMS")
-    us_ed.run_python_script(os.path.join("src","EPA-CEMS","downloadCEMSData.py"))
-    us_ed.run_python_script(os.path.join("src","EPA-CEMS","downloadFacilityInfo.py"))
+        ################
+        ## EIA Form 923
+        ################
+        if "CEMS" in sources :
+            print(source_dict["CEMS"])
+            us_ed.run_python_script(os.path.join("src","EPA-CEMS","downloadCEMSData.py"))
+            us_ed.run_python_script(os.path.join("src","EPA-CEMS","downloadFacilityInfo.py"))
 
-    print("Data download complete")
+        print("Data download complete")
     
 
 def processBuild(us_ed,sp_args) :
@@ -294,8 +325,9 @@ if __name__ == "__main__" :
         description="Manage USElecData source data",
         epilog=HELP_EPILOG
         )
-    sp_source.add_argument("--resource-all",action="store_true", help="Replace all source data with fresh data")
-    sp_source.add_argument("--update-all","-a",action="store_true", help="Download new source data")
+    sp_source.add_argument("sources",nargs="*",help="List of source data products to download")
+    sp_source.add_argument("--list",action="store_true",help="Display a list of source data products")
+    sp_source.add_argument("--resource",action="store_true", help="Replace all source data with fresh data")
 
     ######################
     ## Build Output Data
@@ -375,9 +407,18 @@ if __name__ == "__main__" :
         ignore_environment = True
     else :
         ignore_environment = args.ignore_environment
+
+    #Pass the output root only if we're performing the init operation
+    if args.subcommand == "init" :
+        pass_output_path = args.output_path
+    else :
+        pass_output_path = None
         
     #Instantate the USElecData Class
-    us_ed = USElecDataClass.USElecDataClass(warnings=show_warnings,ignore_environment=ignore_environment)
+    us_ed = USElecDataClass.USElecDataClass(
+        warnings=show_warnings,
+        ignore_environment=ignore_environment,
+        output_path = pass_output_path)
 
     #If no subcommand is entered, display the usage
     if args.subcommand is None :
