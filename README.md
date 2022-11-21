@@ -47,7 +47,7 @@ This will create a local configuration file and set environment variables within
 
 7. Download all the original source data with the command
 
-`USElecData source --update-all`
+`USElecData source all`
 
 8. Build all output data files
 
