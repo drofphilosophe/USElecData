@@ -73,34 +73,42 @@ def downloadAndExtract(url, dest, ketchamate=False) : #Download and extract ZIP 
         DoIProcess = True
 
     if DoIProcess :
-        #Make the Target Directory
-        print("\tCreating Folder")
-        os.mkdir(dest)
 
-        #Request the URL
-        response = urllib.request.urlopen(url)
+        with io.BytesIO() as buf :
+            with urllib.request.urlopen(url) as response :
+                if response.headers['Content-Type'] == "application/x-zip-compressed" :
+                    buf.write(response.read())
 
-        print("\tExtracting data from archive...")
-        #Convert the response to a file-like object
-        zipFile = io.BytesIO()
-        zipFile.write(response.read())
+                    if buf.tell() > 0 :
+                        #Make the Target Directory
+                        print("\tCreating Folder")
+                        os.mkdir(dest)
 
-        #Convert zipFile to a ZipFile object
-        archive = zipfile.ZipFile(zipFile, 'r')
+                        print("\tExtracting data from archive...")
+                        buf.seek(0)
+                        #Convert zipFile to a ZipFile object
+                        try :
+                            with zipfile.ZipFile(buf,'r') as archive :
+                                #Get list of zipFile contents
+                                archiveNameList = archive.namelist()
 
-        #Get list of zipFile contents
-        archiveNameList = archive.namelist()
+                                #Extract all of the files in archive
+                                for fileName in archiveNameList :
+                                    try :
+                                        archive.extract(fileName, path=dest)
+                                    except zipfile.BadZipFile as e :
+                                        print("Unable to extract",fileName,"due to a malformed ZIP file")
+                                        
+                        except zipfile.BadZipFile as e :
+                            print("Unable to open zip archive from",url,"due to a malformed ZIP file")
+                else :
+                    print(
+                        "Server did not return a zip file. Returned content type was",
+                        response.headers['Content-Type'],
+                        "Skipping."
+                        )
+                    
 
-        #Extract all of the files in archive
-        for fileName in archiveNameList :
-            archive.extract(fileName, path=dest)
-
-
-
-        #Clean up
-        archive.close()
-        zipFile.close()
-        response.close()
 
 ########################################################
 ##MAIN PROGRAM

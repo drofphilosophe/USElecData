@@ -223,4 +223,7 @@ for yr in yearList :
             buf.seek(0)
             with zipfile.ZipFile(buf,"r") as archin :
                 for f in archin.namelist() :
-                    archin.extract(f,YearPath)
+                    try :
+                        archin.extract(f,YearPath)
+                    except zipfile.BadZipFile as e :
+                        print("Unable to extract due to malformed zip file. Skipping")
