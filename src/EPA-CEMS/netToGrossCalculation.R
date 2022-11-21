@@ -231,7 +231,7 @@ crosswalk %>%
   distinct(orispl.code,cems.unit.id,year,unit.group) -> crosswalk.cems
 
 crosswalk.cems %>% 
-  count(orispl.code,cems.unit.id,year) %>%
+  dplyr::count(orispl.code,cems.unit.id,year) %>%
   filter(n > 1) -> duplicated.keys
 
 if(nrow(duplicated.keys) > 0) {
