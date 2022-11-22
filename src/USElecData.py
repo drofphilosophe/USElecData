@@ -209,54 +209,54 @@ def processBuild(us_ed,sp_args) :
                     print("Use USElecData build --list to see a list of data products")
                     sys.exit(-1)
                     
-            ################
-            ## tz-info
-            ################
-            if "TZInfo" in products :
-                print(product_dict["TZInfo"])
-                print("No build required")
-            
-            ################
-            ## EIA Form 860
-            ################
-            if "EIA860" in products :
-                print(product_dict["EIA860"])            
-                us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule3_Generators.R"))
-                us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule6.R"))
-                us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule2_Plants.R"))
+        ################
+        ## tz-info
+        ################
+        if "TZInfo" in products :
+            print(product_dict["TZInfo"])
+            print("No build required")
+        
+        ################
+        ## EIA Form 860
+        ################
+        if "EIA860" in products :
+            print(product_dict["EIA860"])            
+            us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule3_Generators.R"))
+            us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule6.R"))
+            us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule2_Plants.R"))
 
-            ################
-            ## EIA Form 923
-            ################
-            if "EIA923" in products :
-                print(product_dict["EIA923"])
-                us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerationAndFuel.R"))
-                us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerator.R"))
+        ################
+        ## EIA Form 923
+        ################
+        if "EIA923" in products :
+            print(product_dict["EIA923"])
+            us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerationAndFuel.R"))
+            us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerator.R"))
 
-            ################
-            ## CEMS Facilities
-            ################
-            if "CEMS" in products or "CEMS_Facility" in products :
-                print(product_dict["CEMS_Facility"])
-                us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadFacilityData.R"))
+        ################
+        ## CEMS Facilities
+        ################
+        if "CEMS" in products or "CEMS_Facility" in products :
+            print(product_dict["CEMS_Facility"])
+            us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadFacilityData.R"))
 
-            ###############
-            ## Data Crosswalks
-            ###############
-            if "Crosswalks" in products :
-                print(product_dict["Crosswalks"]) 
-                us_ed.run_r_script(os.path.join("src","EPA-CEMS","CEMStoEIAMap.R"))
+        ###############
+        ## Data Crosswalks
+        ###############
+        if "Crosswalks" in products :
+            print(product_dict["Crosswalks"]) 
+            us_ed.run_r_script(os.path.join("src","EPA-CEMS","CEMStoEIAMap.R"))
 
 
-            #################
-            ## CEMS Operations
-            #################
-            if "CEMS" in products or "CEMS_Operations" in products :
-                print(product_dict["CEMS_Operations"]) 
-                us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadCEMSData.R"))
-                us_ed.run_r_script(os.path.join("src","EPA-CEMS","netToGrossCalculation.R"))
+        #################
+        ## CEMS Operations
+        #################
+        if "CEMS" in products or "CEMS_Operations" in products :
+            print(product_dict["CEMS_Operations"]) 
+            us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadCEMSData.R"))
+            us_ed.run_r_script(os.path.join("src","EPA-CEMS","netToGrossCalculation.R"))
 
-            print("Data build complete")
+        print("Data build complete")
 
 
 
