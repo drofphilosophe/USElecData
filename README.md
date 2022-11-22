@@ -35,9 +35,11 @@ Code in this package will download and clean up data from many sources. The code
 
 5. Initialize the configuration of your environment using the command 
 
-`USElecData init --output-path=<path_to_ouput_data>` 
+Windows: `USElecData init --output-path=<path_to_ouput_data>` 
 
-This will create a local configuration file and set environment variables within your enviroment that scripts will use later. The `<path_to_output_data>` is a folder where you would like the data to be stored on your local system. Anticiapte serveral hundred gigabytes. During this process you will be prompted to enter an API key for Data.gov. This is required to access some US government data APIs. If you don't currently have an API key, they script will provide a link for you to sign up for one. 
+Mac/Linux: `./USElecData.sh init --output-path=<path_to_ouput_data>` 
+
+This will create a local configuration file and set environment variables within your enviroment that scripts will use later. The `<path_to_output_data>` is a folder where you would like the data to be stored on your local system. Anticiapte serveral hundred gigabytes. During this process you will be prompted to enter an API key for Data.gov. This is required to access some US government data APIs. If you don't currently have an API key, the script will provide a link for you to sign up for one. 
 
 6. De/Reactivate your the `USElecData` Anaconda environment using the commands 
 
@@ -47,11 +49,15 @@ This will create a local configuration file and set environment variables within
 
 7. Download all the original source data with the command
 
-`USElecData source all`
+Windows: `USElecData source all`
+
+Mac/Linux:  `./USElecData.sh source all`
 
 8. Build all output data files
 
-`USElecData build --rebuild-all`
+Windows: `USElecData build --rebuild-all`
+
+Mac/Linux:  `./USElecData.sh build --rebuild-all`
 
 ## Running outside Anaconda or in a different environment
 
