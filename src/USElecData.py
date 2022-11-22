@@ -104,7 +104,7 @@ def processSource(us_ed,sp_args) :
     print(
         "USElecData Processing Source Data",
         "",
-        "WARNING: Not all flags are currently supported.",
+        "WARNING: The --resource flag is not currently supported",
         sep="\n"
         )
 
@@ -133,7 +133,7 @@ def processSource(us_ed,sp_args) :
                     sources += [s]
                 else :
                     print("Unknown source data product",s)
-                    print("Exiting")
+                    print("Use USElecData source --list for a list of source data products")
                     sys.exit(-1)
             
         ################
@@ -174,38 +174,89 @@ def processBuild(us_ed,sp_args) :
     print(
         "USElecData Building Data",
         "",
-        "WARNING: Flags are currently not supported.",
-        "Updating existing data....",
+        "WARNING: The --rebuild flag is not currently supported",
         sep="\n"
         )
-    
-    ################
-    ## tz-info
-    ################
-    #No files
-    
-    ################
-    ## EIA Form 860
-    ################
-    us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule3_Generators.R"))
-    us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule6.R"))
-    us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule2_Plants.R"))
 
-    ################
-    ## EIA Form 923
-    ################
-    us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerationAndFuel.R"))
-    us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerator.R"))
+    ##Create a dictionary of source data product keys and descriptions
+    product_dict = {
+        'TZInfo' : 'Time zone information',
+        'EIA860' : "EIA Form 860 - Electricity Generator Data",
+        'EIA923' : "EIA Form 923 - Fuel and Generation for Electricity Consumption",
+        'CEMS' : "EPA Continuous Emissions Monitoring System (CEMS)",
+        'CEMS_Facility' : 'CEMS Facility Data',
+        'CEMS_Operations' : 'CEMS Operations Data',
+        'Crosswalks' : 'Crosswalks between datasets'
+    }
 
-    ################
-    ## EIA Form 923
-    ################
-    us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadFacilityData.R"))
-    us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadCEMSData.R"))
-    us_ed.run_r_script(os.path.join("src","EPA-CEMS","CEMStoEIAMap.R"))
-    us_ed.run_r_script(os.path.join("src","EPA-CEMS","netToGrossCalculation.R"))
+    #Respond with the list of data sources to --list
+    if sp_args.list :
+        for k in product_dict :
+            print(k,"\t",product_dict[k])
 
-    print("Data build complete")
+    else :
+        print("Updating existing data products....")
+        #Otherwise download
+        if len(sp_args.products) == 0 or "all" in sp_args.products :
+            products = product_dict.keys()
+        else :
+            products = []
+            for p in sp_args.products :
+                if p in product_dict :
+                    products += [p]
+                else :
+                    print("Unknown data product",p)
+                    print("Use USElecData build --list to see a list of data products")
+                    sys.exit(-1)
+                    
+            ################
+            ## tz-info
+            ################
+            if "TZInfo" in products :
+                print(product_dict["TZInfo"])
+                print("No build required")
+            
+            ################
+            ## EIA Form 860
+            ################
+            if "EIA860" in products :
+                print(product_dict["EIA860"])            
+                us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule3_Generators.R"))
+                us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule6.R"))
+                us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule2_Plants.R"))
+
+            ################
+            ## EIA Form 923
+            ################
+            if "EIA923" in products :
+                print(product_dict["EIA923"])
+                us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerationAndFuel.R"))
+                us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerator.R"))
+
+            ################
+            ## CEMS Facilities
+            ################
+            if "CEMS" in products or "CEMS_Facility" in products :
+                print(product_dict["CEMS_Facility"])
+                us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadFacilityData.R"))
+
+            ###############
+            ## Data Crosswalks
+            ###############
+            if "Crosswalks" in products :
+                print(product_dict["Crosswalks"]) 
+                us_ed.run_r_script(os.path.join("src","EPA-CEMS","CEMStoEIAMap.R"))
+
+
+            #################
+            ## CEMS Operations
+            #################
+            if "CEMS" in products or "CEMS_Operations" in products :
+                print(product_dict["CEMS_Operations"]) 
+                us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadCEMSData.R"))
+                us_ed.run_r_script(os.path.join("src","EPA-CEMS","netToGrossCalculation.R"))
+
+            print("Data build complete")
 
 
 
@@ -338,8 +389,10 @@ if __name__ == "__main__" :
         description="Build USElecData output data",
         epilog=HELP_EPILOG
         )
-    sp_build.add_argument("--rebuild-all",action="store_true", help="Rebuild all data from local copies of source data")
-    sp_build.add_argument("--update-all","-a",action="store_true", help="Update source data and build updated output files")
+    sp_build.add_argument("products",nargs="*",help="List of data products to build")
+    sp_build.add_argument("--rebuild",action="store_true", help="Rebuild data from original local copies of source data")
+    sp_build.add_argument("--list",action="store_true",help="Display a list of output data products")
+
     
     ######################
     ## Create ouput packages
