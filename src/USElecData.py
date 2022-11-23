@@ -118,8 +118,10 @@ def processSource(us_ed,sp_args) :
 
     #Respond with the list of data sources to --list
     if sp_args.list :
+        print("\nSoure Data List\n")
+        print("Name".ljust(20),"Description")
         for k in source_dict :
-            print(k,"\t",source_dict[k])
+            print(k.ljust(20),source_dict[k])
 
     else :
         print("Updating existing data....")
@@ -191,8 +193,10 @@ def processBuild(us_ed,sp_args) :
 
     #Respond with the list of data sources to --list
     if sp_args.list :
+        print("\nDatastore list\n")
+        print("Name".ljust(20),"Description")
         for k in product_dict :
-            print(k,"\t",product_dict[k])
+            print(k.ljust(20),product_dict[k])
 
     else :
         print("Updating existing data products....")
@@ -260,6 +264,52 @@ def processBuild(us_ed,sp_args) :
 
 
 
+####################################
+## processRepair
+## Repair management
+####################################
+def processRepair(us_ed,sp_args) :
+    print(
+        "USElecData Repairing internal datastores"
+        )
+
+    ##Create a dictionary of source data product keys and descriptions
+    datastore_dict = {
+        'CEMS' : "All CEMS datastores",
+        'CEMS_Operations' : 'CEMS Operations data file log'
+    }
+
+    #Respond with the list of data sources to --list
+    if sp_args.list :
+        print("\nDatastore List\n")
+        print("Name".ljust(20),"Description")
+        for k in datastore_dict :
+            print(k.ljust(20),datastore_dict[k])
+
+    else :
+        print("Repairing internal datastores....")
+        #Otherwise download
+        if len(sp_args.datastores) == 0 or "all" in sp_args.datastores :
+            datastores = datastore_dict.keys()
+        else :
+            datastores = []
+            for s in sp_args.datastores :
+                if s in datastore_dict :
+                    datastores += [s]
+                else :
+                    print("Unknown internal datastore name",s)
+                    print("Use USElecData repair --list for a list of internal datastores")
+                    sys.exit(-1)
+            
+        ################
+        ## CEMS_Operations
+        ################
+        if "CEMS" in sources or "CEMS_Operations" in sources :
+            print(source_dict["CEMS_Operations"])
+            us_ed.run_python_script(os.path.join("src","EPA-CEMS","retconSourceFileDB.py"))
+
+        print("Repair operations complete")
+            
 def processPackage(us_ed,sp_args) :
     print(
         "Packaging Data",
@@ -393,6 +443,18 @@ if __name__ == "__main__" :
     sp_build.add_argument("--rebuild",action="store_true", help="Rebuild data from original local copies of source data")
     sp_build.add_argument("--list",action="store_true",help="Display a list of output data products")
 
+    ######################
+    ## Access repair utilities
+    ######################
+    sp_repair = subparsers.add_parser(
+        "repair",
+        help="Repair internal maintenance datastores",
+        description="Repair USElecData internal datastores",
+        epilog=HELP_EPILOG
+        )
+    sp_repair.add_argument("datastores",nargs="*",help="List of data internal datastores to repair")
+    sp_repair.add_argument("--list",action="store_true",help="Display a list of output data products")
+    
     
     ######################
     ## Create ouput packages
@@ -489,6 +551,8 @@ if __name__ == "__main__" :
         processBuild(us_ed,args) 
     elif args.subcommand == "package" :
         processPackage(us_ed,args)
+    elif args.subcommand == "repair" :
+        processRepair(us_ed,args)
     elif args.subcommand == "delete" :
         print("Subcommand build not currently implemented")
         sys.exit(1)
