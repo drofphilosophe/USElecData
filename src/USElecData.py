@@ -263,7 +263,6 @@ def processBuild(us_ed,sp_args) :
         print("Data build complete")
 
 
-
 ####################################
 ## processRepair
 ## Repair management
@@ -304,8 +303,8 @@ def processRepair(us_ed,sp_args) :
         ################
         ## CEMS_Operations
         ################
-        if "CEMS" in sources or "CEMS_Operations" in sources :
-            print(source_dict["CEMS_Operations"])
+        if "CEMS" in datastores or "CEMS_Operations" in datastores :
+            print(datastore_dict["CEMS_Operations"])
             us_ed.run_python_script(os.path.join("src","EPA-CEMS","retconSourceFileDB.py"))
 
         print("Repair operations complete")
