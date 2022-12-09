@@ -128,9 +128,9 @@ def downloadAndExtract(url, dest) : #Download and extract ZIP archive
 #define the list of years to download
 
 #Download all non-utility
-downloadAndExtract(baseURL + "/archive/xls/f906nonutil1989.zip", outPathBase + "\\1989_nonutility")
-downloadAndExtract(baseURL + "/archive/xls/f906nonutil1999.zip", outPathBase + "\\1999_nonutility")
-downloadAndExtract(baseURL + "/archive/xls/f906nonutil2000.zip", outPathBase + "\\2000_nonutility")
+downloadAndExtract(f"{baseURL}/archive/xls/f906nonutil1989.zip", os.path.join(outPathBase,"1989_nonutility"))
+downloadAndExtract(f"{baseURL}/archive/xls/f906nonutil1999.zip", os.path.join(outPathBase,"1999_nonutility"))
+downloadAndExtract(f"{baseURL}/archive/xls/f906nonutil2000.zip", os.path.join(outPathBase,"2000_nonutility"))
 
 #Download Utility 1970-2000
 ##yearList = range(1970,2001)
@@ -145,7 +145,7 @@ downloadAndExtract(baseURL + "/archive/xls/f906nonutil2000.zip", outPathBase + "
 yearList = range(2001, 2008)
 for yr in yearList :
     print("Processing " + str(yr) + "\n")
-    downloadAndExtract(baseURL + "/archive/xls/f906920_" + str(yr) + ".zip", outPathBase + "\\" + str(yr))
+    downloadAndExtract(f"{baseURL}/archive/xls/f906920_{yr}.zip", os.path.join(outPathBase,str(yr)))
 
 #2008+ EIA-923
 #Since these represent still-being released data, handling is more complex
@@ -154,7 +154,7 @@ for yr in yearList :
 #to a dated folder.
 yearList = range(2008,endYear+1)
 for yr in yearList :
-    print("Processing " + str(yr) + "\n")
+    print("Processing {yr}")
     YearPath = os.path.join(outPathBase,str(yr))
     if not os.path.isdir(YearPath) :
         os.mkdir(YearPath)
@@ -176,8 +176,8 @@ for yr in yearList :
         hdr = {'If-Modified-Since' : dt.datetime(yr,1,1).astimezone(pytz.utc).strftime("%a, %d %b %Y %H:%M:%S GMT") }
 
     #Construct an HTTP request
-    URLCurrent = baseURL + "/xls/f923_{yr:04d}.zip".format(yr=yr)
-    URLArchive = baseURL + "/archive/xls/f923_{yr:04d}.zip".format(yr=yr)
+    URLCurrent = f"{baseURL}/xls/f923_{yr:04d}.zip"
+    URLArchive = f"{baseURL}/archive/xls/f923_{yr:04d}.zip"
 
     with io.BytesIO() as buf :
         NewFile = False
