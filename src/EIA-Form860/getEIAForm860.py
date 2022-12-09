@@ -118,7 +118,7 @@ yearList = range(startYear, endYear+1)
 
 for yr in yearList :
     print("Year: " + str(yr))
-    destFolder = outPathBase + '\\' + str(yr)
+    destFolder = os.path.join(outPathBase,str(yr))
 
 
     #Let us know what is happening
@@ -126,12 +126,12 @@ for yr in yearList :
 
     #There are three different formats of files. Treat them differently
     if yr < 1998 :
-        downloadAndExtract(baseURL + "/eia860a/eia860a" + str(yr) + ".zip", outPathBase + "\\" + str(yr) + "a")
+        downloadAndExtract(f"{baseURL}/eia860a/eia860a{yr}.zip", os.path.join(outPathBase,f"{yr}a"))
     elif yr < 2001 :
-        downloadAndExtract(baseURL + "/eia860a/eia860a" + str(yr) + ".zip", outPathBase + "\\" + str(yr) + "a")
-        downloadAndExtract(baseURL + "/eia860b/eia860b" + str(yr) + ".zip", outPathBase + "\\" + str(yr) + "b")
+        downloadAndExtract(f"{baseURL}/eia860a/eia860a{yr}.zip", os.path.join(outPathBase,f"{yr}a"))
+        downloadAndExtract(f"{baseURL}/eia860b/eia860b{yr}.zip", os.path.join(outPathBase,f"{yr}b"))
     else :
         try :
-            downloadAndExtract(baseURL + "/archive/xls/eia860" + str(yr) + ".zip", outPathBase + "\\" + str(yr))
+            downloadAndExtract(f"{baseURL}/archive/xls/eia860{yr}.zip", os.path.join(outPathBase,str(yr)))
         except zipfile.BadZipFile as e :
-            downloadAndExtract(baseURL + "/xls/eia860" + str(yr) + ".zip", outPathBase + "\\" + str(yr))
+            downloadAndExtract(f"{baseURL}/xls/eia860{yr}.zip", os.path.join(outPathBase,str(yr)))
