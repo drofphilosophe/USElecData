@@ -35,7 +35,9 @@ outPathBase = os.path.join(outputRoot,"data","source","EPA-CEMS","facility_data"
 
 #Construct the directory tree if it doesn't already exist
 if os.path.isdir(outputRoot) :
-    pass
+    if not os.path.isdir(outPathBase) :
+        print("Creating Output Folder")
+        os.makedirs(outPathBase)
 else :
     raise FileNotFoundError(
     "The data output defined path in the configuration file does not exist\n" +
