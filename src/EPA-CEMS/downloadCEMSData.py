@@ -59,7 +59,7 @@ if endYear is None or endYear.strip() == "" :
 else :
     endYear = int(endYear)
 
-
+HTTPFailMax = 5
 
 #################
 ## getRemoteFileList
@@ -162,7 +162,7 @@ def processRemoteFile(remoteDB,localDB,outPath,yr,fn) :
         #Download the file if needed
         URL = baseURL + "/" + str(yr) + "/" + fn
         with io.BytesIO() as buf :
-            with urllib.request.urlopen(URL) as req :
+            with urllib.request.urlopen(URL,timeout=30) as req :
                 buf.write(req.read())
                     
             #rewind the buffer
@@ -241,7 +241,19 @@ try :
         
         #Loop through each of the files on the FTP server
         for f in remoteFileDict.keys() :
-            processRemoteFile(remoteFileDict,localFileDict,outPath,yr,f)
+            #Try to download a file more than once if there are errors
+            failCount = 0
+            while True :
+                try :
+                    processRemoteFile(remoteFileDict,localFileDict,outPath,yr,f)
+                    break
+                except e :
+                    failCount += 1
+                    if failCount > HTTPFailMax :
+                        print("Maximum number of HTTP attempts exceeded")
+                        raise e
+                    else :
+                        print("HTTP attempt failed. Retrying")
 except Exception as e :
     raise e
 finally :
