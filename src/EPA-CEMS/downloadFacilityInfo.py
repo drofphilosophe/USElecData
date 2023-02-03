@@ -14,6 +14,7 @@ import io
 import yaml
 import datetime as dt
 import urllib.request
+import urllib.error
 import ssl
 
 #########################
@@ -114,14 +115,30 @@ for yr in range(startYear,endYear + 1) :
 
         with io.BytesIO() as buf :
             print("\tDownloading")
-            with urllib.request.urlopen(req,context=ctx) as resp :
-                buf.write(resp.read())
+            try :
+                with urllib.request.urlopen(req,context=ctx) as resp :
+                    buf.write(resp.read())
 
-            print("\tWriting output file")
-            buf.seek(0)
-            with gzip.open(outfilePath,"w") as fout :
-                fout.write(buf.read())
-
+                print("\tWriting output file")
+                buf.seek(0)
+                with gzip.open(outfilePath,"w") as fout :
+                    fout.write(buf.read())
+                    
+            except urllib.error.HTTPError as e :
+                #The server will respond with 400: Bad Request if data for <yr> does not exist
+                if e.code == 400 :
+                    print("\tServer responded with 400: Bad Request")
+                    if yr == dt.date.today().year :
+                        #Prior to the inial release of data for a given year there will be no facility data for that year
+                        #Allow this request to fail gracefully
+                        print("Missing file is for the current year. This is not unexpected early in the year.")
+                    else :
+                        #Missing facility information for past years is likley a problem
+                        print("Missing file is for a previous year. This will likley lead to errors processing CEMS data.")
+                        raise e
+                else :
+                    #Reraise the exception if it wasn't a Bad Request exception
+                    raise e
 
  #Write out the update time
 with open(lastCollectedPath,"w") as outfile :

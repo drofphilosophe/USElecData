@@ -104,7 +104,7 @@ def getRemoteFileList(URL) :
 def getLocalFileList(path) :
 
     if not os.path.isfile(os.path.join(path,"SourceFileLog.csv")) :
-        if len(os.listfiles(path)) > 0 :
+        if len(os.listdir(path)) > 0 :
             print("SourceFileLog.csv is not found in the hourly data folder")
             print("But there are pre-existing files in the hourly data folder")
             print("This is unexpected and means your source data are out-of-sync")
