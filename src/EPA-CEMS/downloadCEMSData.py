@@ -103,6 +103,7 @@ def getRemoteFileList(URL) :
 ###############
 def getLocalFileList(path) :
 
+    localFileDict = None
     if not os.path.isfile(os.path.join(path,"SourceFileLog.csv")) :
         if len(os.listdir(path)) > 0 :
             print("SourceFileLog.csv is not found in the hourly data folder")
@@ -129,8 +130,11 @@ def getLocalFileList(path) :
                       )
                     }
                 localFileDict.update(localFileEntry)
-            
-        return localFileDict
+
+    if localFileDict is None :
+        raise Exception("Local File Dictionary wasn't found or initialized by getLocalFileList(). This error should never be raised.")
+    
+    return localFileDict
 
 #####################
 ## processRemoteFile
@@ -247,7 +251,7 @@ try :
                 try :
                     processRemoteFile(remoteFileDict,localFileDict,outPath,yr,f)
                     break
-                except e :
+                except Exception as e :
                     failCount += 1
                     if failCount > HTTPFailMax :
                         print("Maximum number of HTTP attempts exceeded")
