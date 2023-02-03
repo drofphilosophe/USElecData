@@ -55,9 +55,9 @@ Mac/Linux:  `./USElecData.sh source all`
 
 8. Build all output data files
 
-Windows: `USElecData build --rebuild-all`
+Windows: `USElecData build all`
 
-Mac/Linux:  `./USElecData.sh build --rebuild-all`
+Mac/Linux:  `./USElecData.sh build all`
 
 ## Running outside Anaconda or in a different environment
 
