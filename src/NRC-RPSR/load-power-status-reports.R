@@ -173,7 +173,18 @@ read_rds(file.path(path.EIA923.out,"rds","eia_923_generation_and_fuel_wide.rds.g
 
 
 #Load a datafile of timezone info for each plant
-plant.tz <- read_rds(file.path(nrctz.data,"data","out","nuclear_plant_time_zones.rds.gz"))
+read_rds(
+  file.path(path.project,"data","out","EIA-Form860","rds","Form860_Schedule2_Plant.rds.gz")
+  ) %>% glimpse()
+  group_by(orispl.code) %>%
+  summarize(time.zone = first(time.zone)) -> plant.tz
+
+  
+#######################
+## HERE
+#######################
+  
+  
 
 #Compute the sum of reported uptime for each reactor in each month
 reactor.report %>%
