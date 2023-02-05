@@ -178,7 +178,7 @@ class USElecDataClass :
             self.localConfigDirty = True
 
         if "formats" not in self.localConfig["output"].keys() :
-            self.localConfig["output"].update({"formats" : []})
+            self.localConfig["output"].update({"formats" : ['rds']})
             self.localConfigDirty = True
 
         if "auth" not in self.localConfig.keys() :
