@@ -485,6 +485,11 @@
     "eia.generator.id": 1
   },
   {
+    "unit.name": "RIVER BEND STATION 1",
+    "orispl.code": 6462,
+    "eia.generator.id": 1
+  },
+  {
     "unit.name": "ROBINSON 2",
     "orispl.code": 3251,
     "eia.generator.id": 2
@@ -608,6 +613,16 @@
     "unit.name": "VOGTLE 2",
     "orispl.code": 649,
     "eia.generator.id": 2
+  },
+  {
+    "unit.name": "VOGTLE 3",
+    "orispl.code": 649,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "VOGTLE UNIT 3",
+    "orispl.code": 649,
+    "eia.generator.id": 3
   },
   {
     "unit.name": "WASHINGTON NUCLEAR 2",

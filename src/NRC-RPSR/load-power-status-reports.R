@@ -59,7 +59,7 @@ na.values = c(""," ","\xc2",NA)
 
 all.data = tibble()
 #Loop through each year
-for(yr in start.year:end.year) {
+for(yr in year.start:year.end) {
   print(sprintf("Loading %i",yr))
   filename = glue("ReactorPowerStatus_{yr}.txt.gz")
   read_tsv(
@@ -92,8 +92,14 @@ all.data %>%
 #Show a list of plant names that don't match
 all.data %>%
   anti_join(unit.name.map, by="unit.name") %>%
-  distinct(unit.name) %>%
-  print(n=Inf)
+  distinct(unit.name) -> nomatch
+
+if(nrow(nomatch) > 0) {
+  writeLines("The following plant names from NRC data were not matched")
+  print(nomatch,n=Inf)
+  writeLines("You should update NRC-unit-name-to-ORIS-map.json")
+  stop("Stopping")
+}
 
 all.data %>%
   left_join(unit.name.map, by="unit.name") %>%
@@ -149,15 +155,15 @@ scrams %>%
 #################################################
 #################################################
 #Load daily operations of each reactor from the NRC
-all.data
+all.data %>%
   #Add a month variable
   mutate(
-    Month = floor_date(date,unit="month")
+    month = floor_date(date,unit="month")
   ) -> all.data
 
 #Determine first and last dates in the data
-date.start <- reactor.report %>% pull(Month) %>% min()
-date.end <- reactor.report %>% pull(Month) %>% max()
+date.start <- all.data %>% pull(month) %>% min()
+date.end <- all.data %>% pull(month) %>% max()
 
 #Load monthly generation from the EIA. Only keep nuclear reactors
 read_rds(file.path(path.EIA923.out,"rds","eia_923_generation_and_fuel_wide.rds.gz")) %>% 
@@ -169,53 +175,51 @@ read_rds(file.path(path.EIA923.out,"rds","eia_923_generation_and_fuel_wide.rds.g
 
 
 
-
-
-
-#Load a datafile of timezone info for each plant
+#Load a datafile of timezone info for each plant. These do not change
+#over time, so just find the first one for each plant
 read_rds(
   file.path(path.project,"data","out","EIA-Form860","rds","Form860_Schedule2_Plant.rds.gz")
-  ) %>% glimpse()
+  ) %>%
+  drop_na(time.zone) %>%
   group_by(orispl.code) %>%
   summarize(time.zone = first(time.zone)) -> plant.tz
 
   
-#######################
-## HERE
-#######################
-  
   
 
 #Compute the sum of reported uptime for each reactor in each month
-reactor.report %>%
+all.data %>%
   #Truncate date to the first of the month
-  group_by(orispl.code,eia.generator.id, Month) %>%
+  group_by(orispl.code,eia.generator.id, month) %>%
   summarize(
     power = sum(power.percent, na.rm=TRUE),
     .groups="drop"
   ) %>%
-  full_join(eia.923,by=c("orispl.code", "eia.generator.id" = "nuclear.unit.id", "Month")) %>%
+  full_join(eia.923,by=c("orispl.code", "eia.generator.id" = "nuclear.unit.id", "month")) %>%
   #Compute the daily power to hourly generation ratio
   #There are 24 hours in a day, so you need to divide by 24
   mutate(
-    net.generation = units::drop_units(net.generation),
-    net.generation = if_else(net.generation < 0, 0, net.generation),
+    net.generation = if_else(net.elec.generation.MWh < 0, 0, net.elec.generation.MWh),
     power.to.generation = net.generation / power / 24
-    
   ) -> reactor.power.to.generation
 
 reactor.power.to.generation %>% 
   #Expand the dataset to the full date range
   group_by(orispl.code,eia.generator.id) %>%
   expand(
-    Month = seq.Date(date.start,date.end,by="month")
+    month = seq.Date(date.start,date.end,by="month")
   ) %>%
-  full_join(reactor.power.to.generation, by=c("orispl.code","eia.generator.id","Month")) %>%
+  full_join(
+    reactor.power.to.generation, 
+    by=c("orispl.code","eia.generator.id","month")
+    ) %>%
   fill(power.to.generation,.direction="downup") -> reactor.power.to.generation
 
-reactor.report %>%
+
+
+all.data %>%
   #Merge the power-to-generation conversion factor into daily data
-  left_join(reactor.power.to.generation, by=c("orispl.code","eia.generator.id", "Month")) %>%
+  left_join(reactor.power.to.generation, by=c("orispl.code","eia.generator.id", "month")) %>%
   #Compute hourly output
   mutate(
     net.generation = power.percent*power.to.generation
@@ -235,42 +239,47 @@ reactor.report %>%
 ################################
 ## Expand to an hourly panel
 ################################
-#We'll do this one plant at a time.
+#We'll do this one plant at a time so we can easily account for time zones
+
 #Get the list of plants
 reactor.generation %>%
-  distinct(orispl.code) %>%
-  pull(orispl.code) -> plant.list
+  group_by(orispl.code) -> reactor.generation
 
 reactor.generation.hourly <- tibble()
-for(p in plant.list) {
+for(p.data in group_split(reactor.generation)) {
+  
+  p = p.data$orispl.code[1]
+  
   print(str_c("Plant Code:", p))
+  
   #Determine the plant time zone
   plant.tz %>%
     filter(orispl.code == p) %>%
-    pull(tz.name) -> tz
+    pull(time.zone) -> tz
   
-  reactor.generation %>%
-    filter(orispl.code == p) %>%
-    #Expand to an hourly panel
+  p.data %>%
+    #Count the number of hours in each day. This won't always be
+    #24 hours due to daylight saving time
     mutate(
-      start.hour = ymd_h(format(date ,"%Y-%m-%d 0")),
-      end.hour = ymd_h(format(date + days(1),"%Y-%m-%d 0")),
+      start.hour = as_datetime(date,tz=tz),
+      end.hour = as_datetime(date + days(1),tz=tz),
       num.hours = as.integer(difftime(end.hour,start.hour,units="hours"))
     ) %>%
     #expand to an hourly panel
     uncount(num.hours) %>%
     group_by(orispl.code,eia.generator.id,date) %>%
     mutate(
-      datetime.local = start.hour + hours(row_number() - 1)
+      datetime.utc = with_tz(start.hour,tz="UTC") + hours(row_number() - 1)
     ) %>%
     ungroup() %>%
     #Convert local time to UTC 
     mutate(
-      datetime.utc = with_tz(force_tz(datetime.local, tz=tz),tz="UTC"),
+      datetime.local = force_tz(with_tz(datetime.utc, tz=tz),tz="UTC"),
       utc.offset = as.integer(difftime(datetime.local,datetime.utc,units="hours"))
     ) %>%
     select(-date,-start.hour,-end.hour,-datetime.local) %>%
     rbind(reactor.generation.hourly) -> reactor.generation.hourly
+  
 }
 
 
@@ -279,21 +288,39 @@ for(p in plant.list) {
 ## I write one per year for conveinence
 ##############################
 reactor.generation.hourly %>%
-  mutate(year = year(datetime.utc)) -> reactor.generation.hourly
+  mutate(
+    year = year(datetime.utc)
+  ) %>%
+  group_by(year) -> reactor.generation.hourly
 
-reactor.generation.hourly %>%
-  distinct(year) %>%
-  na.omit() %>%
-  pull(year) -> year.list
 
-for(yr in year.list) {
-  print(str_c("Writing ",yr))
-  reactor.generation.hourly %>%
-    filter(year == yr) %>%
-    select(-year) %>%
-    write_rds(file.path(output.dir,"rds",str_c("HourlyNuclearGenerationByGenerator_",yr,".rds.gz")), compress="gz") %>%
-    rename_all(list(~str_replace_all(.,r"{[\.\s]}","_"))) %>%
-    write_dta(file.path(output.dir,"stata",str_c("HourlyNuclearGenerationByGenerator_",yr,".dta")))
+for(yr.data in group_split(reactor.generation.hourly)) {
+  
+  yr = yr.data$year[1]
+  
+  writeLines(glue("Writing data for {yr}"))
+  
+  if("rds" %in% project.local.config$output$formats) {
+    
+    dir.create(file.path(path.NRC.out,"rds"),showWarnings = FALSE,recursive = TRUE)
+    
+    yr.data %>%
+      select(-year) %>%
+      write_rds(
+        file.path(path.NRC.out,"rds",glue("Nuclear_generation_by_unit_hour_{yr}.rds.gz")),
+        compress="gz"
+      )
+    
+  }
+  
+  if("dta" %in% project.local.config$output$formats) {
+    dir.create(file.path(path.NRC.out,"stata"),showWarnings = FALSE, recursive = TRUE)
+    
+    yr.data %>%
+      rename_all(.funs=list( ~ str_replace_all(.,r"{[\.\s]}", "_"))) %>%
+      rename_all(.funs=list(~str_sub(.,1,31))) %>%
+      write_dta(file.path(path.NRC.out,"stata",glue("Nuclear_generation_by_unit_hour_{yr}.dta")))
+  }
 }
 
 
