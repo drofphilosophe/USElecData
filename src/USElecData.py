@@ -113,7 +113,8 @@ def processSource(us_ed,sp_args) :
         'TZInfo' : 'Time zone information',
         'EIA860' : "EIA Form 860 - Electricity Generator Data",
         'EIA923' : "EIA Form 923 - Fuel and Generation for Electricity Consumption",
-        'CEMS' : "EPA Continuous Emissions Monitoring System (CEMS)"
+        'CEMS' : "EPA Continuous Emissions Monitoring System (CEMS)",
+        'NRC' : "Nuclear Regulatory Comission Reactor Power Status Reports"
     }
 
     #Respond with the list of data sources to --list
@@ -169,6 +170,13 @@ def processSource(us_ed,sp_args) :
             us_ed.run_python_script(os.path.join("src","EPA-CEMS","downloadCEMSData.py"))
             us_ed.run_python_script(os.path.join("src","EPA-CEMS","downloadFacilityInfo.py"))
 
+        ###############
+        ## NRC RPSR
+        ###############
+        if "NRC" in sources :
+            print(source_dict["NRC"])
+            us_ed.run_python_script(os.path.join("src","NRC-RPSR","getReactorPowerStatusReports.py"))
+            
         print("Data download complete")
     
 
@@ -188,7 +196,8 @@ def processBuild(us_ed,sp_args) :
         'CEMS' : "EPA Continuous Emissions Monitoring System (CEMS)",
         'CEMS_Facility' : 'CEMS Facility Data',
         'CEMS_Operations' : 'CEMS Operations Data',
-        'Crosswalks' : 'Crosswalks between datasets'
+        'Crosswalks' : 'Crosswalks between datasets',
+        'NRC' : "Nuclear Regulatory Comission Reactor Power Status Reports"
     }
 
     #Respond with the list of data sources to --list
@@ -259,6 +268,13 @@ def processBuild(us_ed,sp_args) :
             print(product_dict["CEMS_Operations"]) 
             us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadCEMSData.R"))
             us_ed.run_r_script(os.path.join("src","EPA-CEMS","netToGrossCalculation.R"))
+
+        #################
+        ## NRC RPSR
+        #################
+        if "NRC" in products :
+            print(product_dict["NRC"]) 
+            us_ed.run_r_script(os.path.join("src","NRC-RPSR","load-power-status-reports.R"))         
 
         print("Data build complete")
 

@@ -55,25 +55,28 @@ read_json(
 ##Define column formats. We'll just use character as the default and parse 
 ##when when we read in the data
 col.spec = cols(.default = col_character())
-na.values = c(""," ","\xc2",NA)
+na.values = c(""," ","\xc2","--",as.character(NA))
 
 all.data = tibble()
 #Loop through each year
 for(yr in year.start:year.end) {
   print(sprintf("Loading %i",yr))
   filename = glue("ReactorPowerStatus_{yr}.txt.gz")
+  
+  #Read the TSV file. 
   read_tsv(
     file.path(path.NRC_RPSR.source,"processed-csv",filename),
     col_types = col.spec
-  ) %>%
+  ) %>% 
     mutate(
       unit.name = str_to_upper(Unit),
       change.in.report = replace_na(`Change in report (*)`,"") == "*",
-      date = parse_date(Date,format="%Y-%m-%d", na=na.values),
-      date.down = parse_date(Down,"%m/%d/%Y", na=na.values),
-      num.scrams = replace_na(parse_integer(`Number of Scrams (#)`, na=na.values),0),
+      date = parse_date(str_trim(Date),format="%Y-%m-%d", na=na.values),
+      date.down = parse_date(str_trim(Down),"%m/%d/%Y", na=na.values),
+      num.scrams = parse_number(str_trim(`Number of Scrams (#)`), na=na.values),
       power.percent = parse_integer(Power, na=na.values)
     ) %>%
+    replace_na(list(num.scrams=0)) %>%
     rename(
       comment = `Reason or Comment`
     ) %>%
