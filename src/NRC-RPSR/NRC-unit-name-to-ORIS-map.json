@@ -1,0 +1,662 @@
+[
+  {
+    "unit.name": "ARKANSAS NUCLEAR 1",
+    "orispl.code": 8055,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "ARKANSAS NUCLEAR 2",
+    "orispl.code": 8055,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "BEAVER VALLEY 1",
+    "orispl.code": 6040,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "BEAVER VALLEY 2",
+    "orispl.code": 6040,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "BEAVER VALLEY-1",
+    "orispl.code": 6040,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "BEAVER VALLEY-2",
+    "orispl.code": 6040,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "BRAIDWOOD 1",
+    "orispl.code": 6022,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "BRAIDWOOD 2",
+    "orispl.code": 6022,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "BROWNS FERRY 1",
+    "orispl.code": 46,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "BROWNS FERRY 2",
+    "orispl.code": 46,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "BROWNS FERRY 3",
+    "orispl.code": 46,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "BRUNSWICK 1",
+    "orispl.code": 6014,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "BRUNSWICK 2",
+    "orispl.code": 6014,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "BYRON 1",
+    "orispl.code": 6023,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "BYRON 2",
+    "orispl.code": 6023,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "CALLAWAY 1",
+    "orispl.code": 6153,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "CALLAWAY",
+    "orispl.code": 6153,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "CALVERT CLIFFS 1",
+    "orispl.code": 6011,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "CALVERT CLIFFS 2",
+    "orispl.code": 6011,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "CATAWBA 1",
+    "orispl.code": 6036,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "CATAWBA 2",
+    "orispl.code": 6036,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "CLINTON 1",
+    "orispl.code": 204,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "CLINTON",
+    "orispl.code": 204,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "COLUMBIA GENERATING",
+    "orispl.code": 371,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "COLUMBIA GENERATING STATION",
+    "orispl.code": 371,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "COMANCHE PEAK 1",
+    "orispl.code": 6145,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "COMANCHE PEAK 2",
+    "orispl.code": 6145,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "COOK 1",
+    "orispl.code": 6000,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "COOK 2",
+    "orispl.code": 6000,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "D.C. COOK 1",
+    "orispl.code": 6000,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "D.C. COOK 2",
+    "orispl.code": 6000,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "COOPER 1",
+    "orispl.code": 8036,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "COOPER",
+    "orispl.code": 8036,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "CRYSTAL RIVER 3",
+    "orispl.code": 628,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "DAVIS BESSE 1",
+    "orispl.code": 6149,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "DAVIS-BESSE",
+    "orispl.code": 6149,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "DIABLO CANYON 1",
+    "orispl.code": 6099,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "DIABLO CANYON 2",
+    "orispl.code": 6099,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "DRESDEN 2",
+    "orispl.code": 869,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "DRESDEN 3",
+    "orispl.code": 869,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "DUANE ARNOLD 1",
+    "orispl.code": 1060,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "DUANE ARNOLD",
+    "orispl.code": 1060,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "FARLEY 1",
+    "orispl.code": 6001,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "FARLEY 2",
+    "orispl.code": 6001,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "FERMI 2",
+    "orispl.code": 1729,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "FITZPATRICK 1",
+    "orispl.code": 6110,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "FITZPATRICK",
+    "orispl.code": 6110,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "FT CALHOUN 1",
+    "orispl.code": 2289,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "FORT CALHOUN",
+    "orispl.code": 2289,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "GINNA 1",
+    "orispl.code": 6122,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "GINNA",
+    "orispl.code": 6122,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "GRAND GULF 1",
+    "orispl.code": 6072,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "HARRIS 1",
+    "orispl.code": 6015,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "HATCH 1",
+    "orispl.code": 6051,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "HATCH 2",
+    "orispl.code": 6051,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "HOPE CREEK 1",
+    "orispl.code": 6118,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "INDIAN POINT 2",
+    "orispl.code": 2497,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "INDIAN POINT 3",
+    "orispl.code": 8907,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "KEWAUNEE 1",
+    "orispl.code": 8024,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "KEWAUNEE",
+    "orispl.code": 8024,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "LA SALLE 1",
+    "orispl.code": 6026,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "LA SALLE 2",
+    "orispl.code": 6026,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "LASALLE 1",
+    "orispl.code": 6026,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "LASALLE 2",
+    "orispl.code": 6026,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "LIMERICK 1",
+    "orispl.code": 6105,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "LIMERICK 2",
+    "orispl.code": 6105,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "MCGUIRE 1",
+    "orispl.code": 6038,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "MCGUIRE 2",
+    "orispl.code": 6038,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "MILLSTONE 2",
+    "orispl.code": 566,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "MILLSTONE 3",
+    "orispl.code": 566,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "MONTICELLO 1",
+    "orispl.code": 1922,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "MONTICELLO",
+    "orispl.code": 1922,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "NINE MILE POINT 1",
+    "orispl.code": 2589,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "NINE MILE POINT 2",
+    "orispl.code": 2589,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "NORTH ANNA 1",
+    "orispl.code": 6168,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "NORTH ANNA 2",
+    "orispl.code": 6168,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "OCONEE 1",
+    "orispl.code": 3265,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "OCONEE 2",
+    "orispl.code": 3265,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "OCONEE 3",
+    "orispl.code": 3265,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "OYSTER CREEK",
+    "orispl.code": 2388,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "OYSTER CREEK 1",
+    "orispl.code": 2388,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "PALISADES",
+    "orispl.code": 1715,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "PALISADES 1",
+    "orispl.code": 1715,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "PALO VERDE 1",
+    "orispl.code": 6008,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "PALO VERDE 2",
+    "orispl.code": 6008,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "PALO VERDE 3",
+    "orispl.code": 6008,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "PEACH BOTTOM 2",
+    "orispl.code": 3166,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "PEACH BOTTOM 3",
+    "orispl.code": 3166,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "PERRY 1",
+    "orispl.code": 6020,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "PILGRIM 1",
+    "orispl.code": 1590,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "POINT BEACH 1",
+    "orispl.code": 4046,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "POINT BEACH 2",
+    "orispl.code": 4046,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "PRAIRIE ISLAND 1",
+    "orispl.code": 1925,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "PRAIRIE ISLAND 2",
+    "orispl.code": 1925,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "QUAD CITIES 1",
+    "orispl.code": 880,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "QUAD CITIES 2",
+    "orispl.code": 880,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "RIVER BEND 1",
+    "orispl.code": 6462,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "RIVER BEND STATION 1",
+    "orispl.code": 6462,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "ROBINSON 2",
+    "orispl.code": 3251,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "SAINT LUCIE 1",
+    "orispl.code": 6045,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "SAINT LUCIE 2",
+    "orispl.code": 6045,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "SALEM 1",
+    "orispl.code": 2410,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "SALEM 2",
+    "orispl.code": 2410,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "SAN ONOFRE 2",
+    "orispl.code": 360,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "SAN ONOFRE 3",
+    "orispl.code": 360,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "SEABROOK 1",
+    "orispl.code": 6115,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "SEQUOYAH 1",
+    "orispl.code": 6152,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "SEQUOYAH 2",
+    "orispl.code": 6152,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "SOUTH TEXAS 1",
+    "orispl.code": 6251,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "SOUTH TEXAS 2",
+    "orispl.code": 6251,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "SUMMER",
+    "orispl.code": 6127,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "SUMMER 1",
+    "orispl.code": 6127,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "SURRY 1",
+    "orispl.code": 3806,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "SURRY 2",
+    "orispl.code": 3806,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "SUSQUEHANNA 1",
+    "orispl.code": 6103,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "SUSQUEHANNA 2",
+    "orispl.code": 6103,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "THREE MILE ISLAND 1",
+    "orispl.code": 8011,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "TURKEY POINT 3",
+    "orispl.code": 621,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "TURKEY POINT 4",
+    "orispl.code": 621,
+    "eia.generator.id": 4
+  },
+  {
+    "unit.name": "VERMONT YANKEE",
+    "orispl.code": 3751,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "VERMONT YANKEE 1",
+    "orispl.code": 3751,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "VOGTLE 1",
+    "orispl.code": 649,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "VOGTLE 2",
+    "orispl.code": 649,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "VOGTLE 3",
+    "orispl.code": 649,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "VOGTLE UNIT 3",
+    "orispl.code": 649,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "WASHINGTON NUCLEAR 2",
+    "orispl.code": 371,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "WATERFORD 3",
+    "orispl.code": 4270,
+    "eia.generator.id": 3
+  },
+  {
+    "unit.name": "WATTS BAR 1",
+    "orispl.code": 7722,
+    "eia.generator.id": 1
+  },
+  {
+    "unit.name": "WATTS BAR 2",
+    "orispl.code": 7722,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "WNP-2",
+    "orispl.code": 371,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "WNP2",
+    "orispl.code": 371,
+    "eia.generator.id": 2
+  },
+  {
+    "unit.name": "WOLF CREEK 1",
+    "orispl.code": 210,
+    "eia.generator.id": 1
+  }
+]

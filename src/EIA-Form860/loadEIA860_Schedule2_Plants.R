@@ -11,6 +11,7 @@ library(jsonlite)
 library(glue)
 library(usmap)
 library(fuzzyjoin)
+library(sf)
 
 #Identifies the project root path using the
 #relative location of this script
@@ -25,6 +26,7 @@ version.date <- project.config$`version-info`$`version-date`
 
 path.EIA860.source = file.path(path.project,"data","source","EIA-Form860")
 path.EIA860.out = file.path(path.project,"data","out","EIA-Form860")
+path.tzinfo = file.path(path.project,"data","source","tz-info")
 
 year.start = as.integer(project.config$sources$`EIA-Form860`$`start-year`)
 if(is.null(project.config$sources$`EIA-Form860`$`end-year`)) {
@@ -324,6 +326,22 @@ all.data %>%
   ) -> all.data
 
 
+#Determine the time zone of each plant using tz-info
+st_read(file.path(path.tzinfo,"tz-geodata-combined-with-oceans.json")) -> tzinfo.geo
+
+sf_use_s2(FALSE)
+all.data %>%
+  group_by(orispl.code) %>%
+  summarize(
+    latitude = median(plant.latitude, na.rm=TRUE),
+    longitude = median(plant.longitude,na.rm=TRUE)
+  ) %>%
+  drop_na() %>%
+  st_as_sf(coords=c("longitude","latitude"),crs=st_crs(4326)) %>%
+  st_join(tzinfo.geo) %>%
+  rename(time.zone = tzid) %>%
+  st_drop_geometry() %>%
+  right_join(all.data,by="orispl.code") -> all.data
 
 
 ####################################################
