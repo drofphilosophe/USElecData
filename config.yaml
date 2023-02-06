@@ -23,5 +23,7 @@ sources:
     URL-base: https://www.nrc.gov/reading-rm/doc-collections/event-status/reactor-status/
     start-date: 1999-01-01
     end-date:
+  NREL-PVWatts:
+    URL: https://developer.nrel.gov 
 
       
