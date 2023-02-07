@@ -262,8 +262,13 @@ class PVWatts :
                     buf.seek(0)
                     self.response_json = json.load(buf)
                 else :
+                    print("Some other HTTP error. The request parameters follow")
+                    for k in self.query_params :
+                        print(k,":",self.query_params[k])
+                    print("")
                     raise e
-            
+                
+        self.query_log += [dt.datetime.now()]
 
 ##Init the object for communicating with PVWatts
 P = PVWatts(url=base_URL,api_key=API_key)
@@ -284,7 +289,9 @@ if os.path.isfile(tsv_out_path) :
         rdr = csv.DictReader(f,delimiter='\t')
         for row in rdr :
             generation_profiles += [row]
-            processed_plants += [ (row['orispl.code'],row['eia.generator.id']) ]
+            genunit_id = (row['orispl.code'],row['eia.generator.id'])
+            if genunit_id not in processed_plants :
+                processed_plants += [ genunit_id ]
 
 try :    
 ##Loop through each solar plant
@@ -300,7 +307,11 @@ try :
             P.query_timeframe('hourly')
             P.query_latitude(plant["plant.latitude"])
             P.query_longitude(plant["plant.longitude"])
-            P.query_system_capacity(plant["nameplate.capacity.mw"])
+            if float(plant["nameplate.capacity.mw"]) > 0 :
+                P.query_system_capacity(plant["nameplate.capacity.mw"])
+            else :
+                P.query_system_capacity(1)
+                
             P.query_tilt(plant["tilt.angle"])
             P.query_azimuth(plant["azimuth.angle"])
             P.query_losses(0)
