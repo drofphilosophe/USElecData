@@ -270,6 +270,20 @@ class PVWatts :
                 
         self.query_log += [dt.datetime.now()]
 
+def write_output_file(filepath,data) :
+    print("Writing the output file")
+    with io.TextIOWrapper(gzip.open(filepath,"wb"),encoding='utf-8',newline='\n') as f :
+        wtr = csv.DictWriter(
+            f,
+            fieldnames=['orispl.code','eia.generator.id','month','day','hour','pvwatts.generation'],
+            delimiter='\t'
+            )
+        wtr.writeheader()
+        
+        for r in data :
+            wtr.writerow(r)
+
+            
 ##Init the object for communicating with PVWatts
 P = PVWatts(url=base_URL,api_key=API_key)
 
@@ -293,9 +307,14 @@ if os.path.isfile(tsv_out_path) :
             if genunit_id not in processed_plants :
                 processed_plants += [ genunit_id ]
 
-try :    
-##Loop through each solar plant
-    for plant in solar_data :
+try :
+    #Create a set of required keys in each plant record
+    key_set = {'plant.longitude','plant.latitude','tilt.angle',
+               'azimuth.angle','is.thinfilm','has.single.axis.tracking',
+               'has.dual.axis.tracking'}
+    
+    ##Loop through each solar plant
+    for record_num, plant in enumerate(solar_data) :
 
         plant_oris = str(plant["orispl.code"])
         plant_genid = plant["eia.generator.id"]
@@ -303,6 +322,15 @@ try :
         if (plant_oris,plant_genid) in processed_plants :
             print(f"We already have data for ORIS: {plant_oris} Generator: {plant_genid}. Skipping")
         else :
+            #Check all the imporant fields exist
+            missing_keys = [k for k in key_set if k not in plant.keys() ]
+            if len(missing_keys) > 0 :
+                print("The following are missing for this record:")             
+                for k in missing_keys :
+                    print(k)                    
+                print("Skipping")
+                continue
+                
             print(f"Prossing ORIS: {plant_oris} Generator: {plant_genid}")
             P.query_timeframe('hourly')
             P.query_latitude(plant["plant.latitude"])
@@ -352,19 +380,12 @@ try :
 
             processed_plants += [(plant_oris,plant_genid)]
 
+        #Commit the output file every 100 records
+        if record_num % 100 == 0 :
+            write_output_file(filepath=tsv_out_path,data=generation_profiles)
 finally :
     #Write an output file
-    print("Writing the output file")
-    with io.TextIOWrapper(gzip.open(tsv_out_path,"wb"),encoding='utf-8',newline='\n') as f :
-        wtr = csv.DictWriter(
-            f,
-            fieldnames=['orispl.code','eia.generator.id','month','day','hour','pvwatts.generation'],
-            delimiter='\t'
-            )
-        wtr.writeheader()
-        
-        for r in generation_profiles :
-            wtr.writerow(r)
+    write_output_file(filepath=tsv_out_path,data=generation_profiles)
         
     
 
