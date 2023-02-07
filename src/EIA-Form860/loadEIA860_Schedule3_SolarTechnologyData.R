@@ -331,7 +331,8 @@ for(c in boolean.cols) {
         temp.xxx == "NA" ~ as.logical(NA),
         TRUE ~ as.logical(NA)
       )
-    ) -> all.solar
+    ) %>%
+    select(-temp.xxx) -> all.solar
 }
 
 
@@ -397,12 +398,6 @@ for(ym in year.month.cols) {
 ####################################################
 ####################################################
 ####################################################
-
-
-
-###############
-
-###############
 if("rds" %in% project.local.config$output$formats) {
   dir.create(file.path(path.EIA860.out,"rds"),showWarnings = FALSE)
 
@@ -425,5 +420,63 @@ if("dta" %in% project.local.config$output$formats) {
     write_dta(file.path(path.EIA860.out,"stata","Form860_Schedule3_Solar.dta"))
 
 }
+
+####################################################
+## Summary file of plant details
+## We write it out as a JSON file. 
+## It will be used by a Python script later
+####################################################
+all.solar %>%
+  filter(prime.mover == "PV") %>%
+  group_by(orispl.code,eia.generator.id) %>%
+  summarize(
+    across(
+      c(nameplate.capacity.mw,azimuth.angle,tilt.angle,retired.month),
+      ~max(.,na.rm=TRUE)
+    ),
+    across(
+      c(has.single.axis.tracking,has.dual.axis.tracking,starts_with("is.thinfilm")),
+      ~any(.,na.rm=TRUE)
+    ),
+    first.operating.month = min(first.operating.month,na.rm=TRUE),
+    .groups="drop"
+  ) %>%
+  mutate(
+    is.thinfilm = is.thinfilm.CdTe | is.thinfilm.ASi | is.thinfilm.CIGS | is.thinfilm.other
+    ) %>%
+  select(-starts_with("is.thinfilm.")) -> solar.plant.details
+
+read_rds(file.path(path.EIA860.out,"rds","Form860_Schedule2_Plant.rds.gz")) %>% 
+  select(orispl.code,plant.latitude,plant.longitude) %>%
+  drop_na() %>%
+  group_by(orispl.code) %>%
+  summarize(
+    plant.latitude = median(plant.latitude),
+    plant.longitude = median(plant.longitude)
+  ) %>%
+  right_join(solar.plant.details,by="orispl.code") %>%
+  mutate(
+    #Default azimuth to 180
+    azimuth.angle = if_else(azimuth.angle == -Inf,180,azimuth.angle),
+    #Default tile angle to the largest even 5 degrees below latitude
+    tilt.angle = if_else(tilt.angle == -Inf,floor(plant.latitude/5)*5,tilt.angle)
+  ) %>%
+  select(orispl.code,eia.generator.id,everything()) %>%
+  arrange(orispl.code,eia.generator.id) -> solar.plant.details
+  
+
+dir.create(
+  file.path(path.project,"data","intermediate","Solar"),
+  showWarnings = FALSE,
+  recursive = TRUE
+  )
+
+solar.plant.details %>%
+  write_json(
+    file.path(path.project,"data","intermediate","Solar","solar-plant-details.json"),
+    pretty=TRUE
+    )
+
+
 
 

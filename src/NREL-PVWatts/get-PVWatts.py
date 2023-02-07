@@ -15,6 +15,8 @@ import io
 import yaml
 import csv
 import json
+import gzip
+import time
 
 #########################
 ## Load and register the configuration
@@ -101,6 +103,9 @@ class PVWatts :
         self.query_url = None
         self.request = None
         self.response_json = None
+
+        #Create a log of query datetimes
+        self.query_log = []
         
 
     def set_url(self,url) :
@@ -230,28 +235,128 @@ class PVWatts :
 
 
     def run_query(self) :
+        #Count the number of queries run within the past hour
+        query_count = len([q for q in self.query_log if q >= dt.datetime.now() - dt.timedelta(hours=1)])
+        if query_count >= 990 :
+            delay = dt.datetime.now() - self.query_log[-990:-989] - dt.timedelta(hours=1)
+            print(f"Query limit exceeded. Sleeping {delay.seconds} seconds")
+            time.sleep(delay.seconds)
+            
         with io.BytesIO() as buf :
-            with urllib.request.urlopen(self.request) as resp :
-                buf.write(resp.read())
-            buf.seek(0)
-            self.response_json = json.load(buf)
+            try :
+                #Throttle just a little to be nice
+                time.sleep(5)
+                
+                with urllib.request.urlopen(self.request) as resp :
+                    buf.write(resp.read())
+                buf.seek(0)
+                self.response_json = json.load(buf)
+                
+            #Trap 429 errors which indicate we've exceeded our request quota
+            except urllib.error.HTTPError as e :
+                if e.code == 429 :
+                    print("The server responded that we've exceeded our request quota. Sleeping 1 hour")
+                    time.sleep(60*60)
+                    with urllib.request.urlopen(self.request) as resp :
+                        buf.write(resp.read())
+                    buf.seek(0)
+                    self.response_json = json.load(buf)
+                else :
+                    raise e
             
 
-
+##Init the object for communicating with PVWatts
 P = PVWatts(url=base_URL,api_key=API_key)
-P.query_timeframe('hourly')
-P.query_array_type('Fixed - Open Rack')
-P.query_module_type('Premium')
-P.query_losses(0)
-P.query_latitude(39.98587)
-P.query_longitude(-76.94105)
-P.query_system_capacity(1000)
-P.query_tilt(20)
-P.query_azimuth(165)
-P.get_request()
-P.run_query()
-print(P.response_json.keys())
-#print(P.query_url + f"&api_key={P.api_key}")
+
+##Load the JSON file of solar plant details
+with open(os.path.join(outputRoot,"data","intermediate","Solar","solar-plant-details.json"),"r") as f :
+    solar_data = json.load(f)
+
+##Load a pre-existing output file
+generation_profiles = []
+#A set containing oris,generator-id tuples of plants we've already processed
+processed_plants = []
+
+tsv_out_path = os.path.join(outputRoot,"data","intermediate","Solar","solar-generation.profiles.txt.gz")
+if os.path.isfile(tsv_out_path) :
+    print("Reading a previous output file")
+    with io.TextIOWrapper(gzip.open(tsv_out_path,"r"),encoding='utf-8') as f :
+        rdr = csv.DictReader(f,delimiter='\t')
+        for row in rdr :
+            generation_profiles += [row]
+            processed_plants += [ (row['orispl.code'],row['eia.generator.id']) ]
+
+try :    
+##Loop through each solar plant
+    for plant in solar_data :
+
+        plant_oris = str(plant["orispl.code"])
+        plant_genid = plant["eia.generator.id"]
+
+        if (plant_oris,plant_genid) in processed_plants :
+            print(f"We already have data for ORIS: {plant_oris} Generator: {plant_genid}. Skipping")
+        else :
+            print(f"Prossing ORIS: {plant_oris} Generator: {plant_genid}")
+            P.query_timeframe('hourly')
+            P.query_latitude(plant["plant.latitude"])
+            P.query_longitude(plant["plant.longitude"])
+            P.query_system_capacity(plant["nameplate.capacity.mw"])
+            P.query_tilt(plant["tilt.angle"])
+            P.query_azimuth(plant["azimuth.angle"])
+            P.query_losses(0)
+            P.query_use_wf_albedo(True)
+            
+            if plant["is.thinfilm"] :
+                P.query_module_type('Thin Film')
+            else :
+                P.query_module_type('Premium')
+
+            if plant["has.single.axis.tracking"] :
+                P.query_array_type('1-Axis')
+            elif plant["has.dual.axis.tracking"] :
+                P.query_array_type('2-Axis')
+            else :
+                P.query_array_type('Fixed - Open Rack')
+
+            P.get_request()
+            P.run_query()
+
+            #Loop through each row and write the output
+            #Initialize the date. Be sure to choose a non-leap year
+            curr_datetime = dt.datetime(2001,1,1,0)
+
+            for r in P.response_json['outputs']['ac'] :
+                output_row = {
+                    'orispl.code' : plant_oris,
+                    'eia.generator.id' : plant_genid,
+                    'month' : curr_datetime.month,
+                    'day' : curr_datetime.day,
+                    'hour' : curr_datetime.hour,
+                    'pvwatts.generation' : r
+                }
+                generation_profiles += [output_row]
+
+                #Increment the datetime one hour
+                curr_datetime += dt.timedelta(hours=1)
+
+            processed_plants += [(plant_oris,plant_genid)]
+
+finally :
+    #Write an output file
+    print("Writing the output file")
+    with io.TextIOWrapper(gzip.open(tsv_out_path,"wb"),encoding='utf-8',newline='\n') as f :
+        wtr = csv.DictWriter(
+            f,
+            fieldnames=['orispl.code','eia.generator.id','month','day','hour','pvwatts.generation'],
+            delimiter='\t'
+            )
+        wtr.writeheader()
+        
+        for r in generation_profiles :
+            wtr.writerow(r)
+        
+    
+
 
 
         
