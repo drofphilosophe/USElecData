@@ -307,85 +307,93 @@ if os.path.isfile(tsv_out_path) :
             if genunit_id not in processed_plants :
                 processed_plants += [ genunit_id ]
 
-try :
-    #Create a set of required keys in each plant record
-    key_set = {'plant.longitude','plant.latitude','tilt.angle',
-               'azimuth.angle','is.thinfilm','has.single.axis.tracking',
-               'has.dual.axis.tracking'}
-    
-    ##Loop through each solar plant
-    for record_num, plant in enumerate(solar_data) :
 
-        plant_oris = str(plant["orispl.code"])
-        plant_genid = plant["eia.generator.id"]
+#Create a set of required keys in each plant record
+key_set = {'plant.longitude','plant.latitude','tilt.angle',
+           'azimuth.angle','is.thinfilm','has.single.axis.tracking',
+           'has.dual.axis.tracking'}
 
-        if (plant_oris,plant_genid) in processed_plants :
-            print(f"We already have data for ORIS: {plant_oris} Generator: {plant_genid}. Skipping")
-        else :
-            #Check all the imporant fields exist
-            missing_keys = [k for k in key_set if k not in plant.keys() ]
-            if len(missing_keys) > 0 :
-                print("The following are missing for this record:")             
-                for k in missing_keys :
-                    print(k)                    
-                print("Skipping")
-                continue
-                
-            print(f"Prossing ORIS: {plant_oris} Generator: {plant_genid}")
-            P.query_timeframe('hourly')
-            P.query_latitude(plant["plant.latitude"])
-            P.query_longitude(plant["plant.longitude"])
-            if float(plant["nameplate.capacity.mw"]) > 0 :
-                P.query_system_capacity(plant["nameplate.capacity.mw"])
-            else :
-                P.query_system_capacity(1)
-                
-            P.query_tilt(plant["tilt.angle"])
-            P.query_azimuth(plant["azimuth.angle"])
-            P.query_losses(0)
-            P.query_use_wf_albedo(True)
+##Loop through each solar plant
+record_num = 0
+for plant in solar_data :
+
+    plant_oris = str(plant["orispl.code"])
+    plant_genid = plant["eia.generator.id"]
+
+    if (plant_oris,plant_genid) in processed_plants :
+        print(f"We already have data for ORIS: {plant_oris} Generator: {plant_genid}. Skipping")
+    else :
+        #Check all the imporant fields exist
+        missing_keys = [k for k in key_set if k not in plant.keys() ]
+        if len(missing_keys) > 0 :
+            print("The following are missing for this record:")             
+            for k in missing_keys :
+                print(k)                    
+            print("Skipping")
+            continue
             
-            if plant["is.thinfilm"] :
-                P.query_module_type('Thin Film')
-            else :
-                P.query_module_type('Premium')
+        print(f"Prossing ORIS: {plant_oris} Generator: {plant_genid}")
+        P.query_timeframe('hourly')
+        P.query_latitude(plant["plant.latitude"])
+        P.query_longitude(plant["plant.longitude"])
+        if float(plant["nameplate.capacity.mw"]) > 0 :
+            P.query_system_capacity(plant["nameplate.capacity.mw"])
+        else :
+            P.query_system_capacity(1)
+            
+        if plant["tilt.angle"] < 0 :
+            P.query_tilt(-1*plant["tilt.angle"])
+        else :
+            P.query_tilt(plant["tilt.angle"])
+            
+        if plant["azimuth.angle"] < 0 :
+            P.query_azimuth(360 + plant["azimuth.angle"])
+        else :
+            P.query_azimuth(plant["azimuth.angle"])
+        P.query_losses(0)
+        P.query_use_wf_albedo(True)
+        
+        if plant["is.thinfilm"] :
+            P.query_module_type('Thin Film')
+        else :
+            P.query_module_type('Premium')
 
-            if plant["has.single.axis.tracking"] :
-                P.query_array_type('1-Axis')
-            elif plant["has.dual.axis.tracking"] :
-                P.query_array_type('2-Axis')
-            else :
-                P.query_array_type('Fixed - Open Rack')
+        if plant["has.single.axis.tracking"] :
+            P.query_array_type('1-Axis')
+        elif plant["has.dual.axis.tracking"] :
+            P.query_array_type('2-Axis')
+        else :
+            P.query_array_type('Fixed - Open Rack')
 
-            P.get_request()
-            P.run_query()
+        P.get_request()
+        P.run_query()
 
-            #Loop through each row and write the output
-            #Initialize the date. Be sure to choose a non-leap year
-            curr_datetime = dt.datetime(2001,1,1,0)
+        #Loop through each row and write the output
+        #Initialize the date. Be sure to choose a non-leap year
+        curr_datetime = dt.datetime(2001,1,1,0)
 
-            for r in P.response_json['outputs']['ac'] :
-                output_row = {
-                    'orispl.code' : plant_oris,
-                    'eia.generator.id' : plant_genid,
-                    'month' : curr_datetime.month,
-                    'day' : curr_datetime.day,
-                    'hour' : curr_datetime.hour,
-                    'pvwatts.generation' : r
-                }
-                generation_profiles += [output_row]
+        for r in P.response_json['outputs']['ac'] :
+            output_row = {
+                'orispl.code' : plant_oris,
+                'eia.generator.id' : plant_genid,
+                'month' : curr_datetime.month,
+                'day' : curr_datetime.day,
+                'hour' : curr_datetime.hour,
+                'pvwatts.generation' : r
+            }
+            generation_profiles += [output_row]
 
-                #Increment the datetime one hour
-                curr_datetime += dt.timedelta(hours=1)
+            #Increment the datetime one hour
+            curr_datetime += dt.timedelta(hours=1)
 
-            processed_plants += [(plant_oris,plant_genid)]
+        processed_plants += [(plant_oris,plant_genid)]
+        record_num += 1
 
         #Commit the output file every 100 records
         if record_num % 100 == 0 :
             write_output_file(filepath=tsv_out_path,data=generation_profiles)
-finally :
-    #Write an output file
-    write_output_file(filepath=tsv_out_path,data=generation_profiles)
+
+write_output_file(filepath=tsv_out_path,data=generation_profiles)
         
     
 
