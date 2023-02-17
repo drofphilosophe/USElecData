@@ -9,3 +9,4 @@ dependencies:
   - r-here
   - r-yaml
   - r-glue
+  - r-sf

@@ -10,7 +10,7 @@ library(yaml)
 
 #Identifies the project root path using the
 #relative location of this script
-i_am("src/EPA-CEMS/loadEIA860_Schedule6_BoilerStack.R")
+i_am("src/EIA-Form860/loadEIA860_Schedule6.R")
 
 #Read the project configuration
 read_yaml(here("config.yaml")) -> project.config
