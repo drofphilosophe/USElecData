@@ -1,45 +1,56 @@
-#DK Spring 2019 - LOAD EIA FUEL PURCHASE DATA
-  #Original Author: James Archsmith
-  #Original Filename: 3_load_eia_923_fuel_purchase.do
 ############################################################
-
-rm(list=ls())
+## Load EIA 923 Fuel Purchase Data
+############################################################
 library(tidyverse)
 library(readxl)
 library(lubridate)
 library(magrittr)
 library(haven)
-library(haven)
+library(here)
+library(yaml)
 
-g.drive = Sys.getenv("GoogleDrivePath")
+#Identifies the project root path using the
+#relative location of this script
+i_am("src/EIA-Form923/loadFuelPurchase.R")
 
-#setup
-eia923.path <- file.path(g.drive,"Data","Energy","Electricity","EIA","Form EIA-923")
-eia923.version <- "20200416"
+#Read the project configuration
+read_yaml(here("config.yaml")) -> project.config
+read_yaml(here("config_local.yaml")) -> project.local.config
 
-startYear <- 2008
-endYear <- year(today())
+path.project <- file.path(project.local.config$output$path)
+version.date <- project.config$`version-info`$`version-date`
+
+path.source = file.path(path.project, "data","source", "EIA-Form923")
+
+year.start <- as.integer(project.config$sources$`EIA-Form923`$`start-year`)
+#Fuel purhcase data start in 2001
+year.start = max(year.start,2001)
+
+if(is.null(project.config$sources$`EIA-Form923`$`end-year`)) {
+  year.end <- year(today())
+} else {
+  year.end <- as.integer(project.config$sources$`EIA-Form923`$`end-year`)
+}
+
 
 #landing pad for data
 eia_923_fuel_purchase <- tibble()
 
 #Where to find data for each year
-for(yr in startYear:endYear) {
+for(yr in year.start:year.end) {
   writeLines("")
   writeLines(str_c("Importing ",yr,sep=""))
   
-  #Determine the most recent revision
-  list.files(file.path(eia923.path,"data","source",yr),pattern="^[0-9]+$") %>% 
-    sort() %>% 
-    last() -> year.version
-  
-  writeLines(str_c(" Data Version: ", year.version))
-  
-  year.path <- file.path(eia923.path,"data","source",yr,year.version)
+  year.path <- file.path(path.source,yr)
   
   #print(str_c("Source Path: ", year.path))
   flist <- list.files(year.path,pattern="*.[Xx][Ll][Ss]?")
+  if(length(flist) == 0) {
+    writeLines(str_c("No source file for year ",yr))
+    next
+  }
   infile.name = as.character(NA)
+  
   #Determine the type of file we have. It is either "f906920[y\_]<yr>.xls"
   #or ucase matches regex *SCHEDULE*5*
   if(str_c("f906920_",yr,".xls") %in% flist) {
@@ -72,7 +83,7 @@ for(yr in startYear:endYear) {
     for(s in sheet.list) {
       print(s)
     }
-    stop("Aborting")
+    next
   }
   writeLines(str_c(" Sheet Name: ", sheet.name))
   
@@ -93,7 +104,7 @@ for(yr in startYear:endYear) {
   #import data
   read_excel(filepath, sheet=sheet.name, skip=toprow-1, col_names=TRUE) -> DATA
   
-  #standardize things
+  #standardize column names
   DATA <- rename_all(DATA, toupper) 
   colnames(DATA)  %<>%                      #compound pipe assigns result back to colnames(DATA)
     str_replace_all( r"--{\s}--",  "") %>%
@@ -167,7 +178,7 @@ col_order <- c("YEAR","MONTH","PLANTID","PLANTNAME","STATE",
 eia_923_fuel_purchase %<>% select(col_order, everything())
 
 
-### fancy-pants missing obs. table ###
+### Create a table of missing observations ###
 
   #Doing this in 2 steps:
     #1. Find and store the missings
@@ -201,11 +212,6 @@ for (col in colnames(eia_923_fuel_purchase)) {
 
 #sort
 eia_923_fuel_purchase %<>% arrange(PLANTID,YEAR,MONTH)
-
-#OUTPUT to intermediate folder
-eia_923_fuel_purchase %>%
-  write_rds(file.path(eia923.path,"data","intermediate", "eia_923_fuel_purchase.rds.gz"), compress="gz")
-
 
 ################################
 ## Clean up varnames and content
@@ -300,16 +306,39 @@ EIA923.clean %>%
     max= max(cost.per.mmBTU, na.rm = TRUE),
     n=n()
   )
+#######################################
+#######################################
+## Create output files
+#######################################
+#######################################
 
-path.out <- file.path(eia923.path,"data","out",eia923.version)
-if(!dir.exists(path.out)) {
-  dir.create(path.out)
-  dir.create(file.path(path.out,"R"))
-  dir.create(file.path(path.out,"Stata"))
+#########################
+## Create output data folders
+#########################
+path.out = file.path(path.project,"data","out","EIA-Form923")
+dir.create(path.out,recursive=TRUE,showWarnings = FALSE)
+
+########################
+## Write RDS files
+########################
+if("rds" %in% project.local.config$output$formats) {
+  dir.create(file.path(path.out,"rds"),recursive=TRUE,showWarnings = FALSE)
+  
+  EIA923.clean %>%
+    write_rds(
+      file.path(path.out,"rds","eia_923_fuel_purchase.rds.gz"), 
+      compress="gz"
+    )
 }
 
-EIA923.clean %>% 
-  write_rds(file.path(path.out,"R","EIA923_fuel_purchase.rds.gz"), compress="gz") %>%
-  rename_all(list(~str_replace_all(.,r"{[\s\.]}","_"))) %>%
-  write_dta(file.path(path.out,"Stata","EIA923_fuel_purchase.dta"))
+if("dta" %in% project.local.config$output$formats) {
+  dir.create(file.path(path.out,"stata"),recursive=TRUE,showWarnings = FALSE)
+  
+  EIA923.clean %>%
+    rename_all(.funs=list( ~ str_replace_all(.,r"{[\s\.]}","_"))) %>%
+    write_dta(
+      file.path(path.out,"stata","eia_923_fuel_purchase.dta")
+    )
+}
+
 

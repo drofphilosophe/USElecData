@@ -245,6 +245,7 @@ def processBuild(us_ed,sp_args) :
             print(product_dict["EIA923"])
             us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerationAndFuel.R"))
             us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerator.R"))
+            us_ed.run_r_script(os.path.join("src","EIA-Form923","loadFuelPurchase.R"))
 
         ################
         ## CEMS Facilities
