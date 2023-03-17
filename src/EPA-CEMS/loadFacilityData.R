@@ -512,8 +512,15 @@ facility %>%
   mutate(
     plant.latitude = st_coordinates(geometry)[,2],
     plant.longitude = st_coordinates(geometry)[,1]
-  ) %>%
-  st_drop_geometry() -> facility
+  ) -> facility
+
+if("sf" %in% class(facility)) {
+  facility %>%
+    st_drop_geometry() -> facility
+}
+
+facility %>% 
+  select(-any_of("geometry")) -> facility
 
   
   
