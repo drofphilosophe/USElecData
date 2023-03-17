@@ -540,7 +540,6 @@ if("dta" %in% project.local.config$output$formats) {
 
   
   facility %>%
-    select(-geometry) %>% 
     rename_all(.funs=list( ~ str_replace_all(.,"[\\.\\s]", "_"))) %>%
     mutate_if(is_character, .funs=list(~str_sub(.,1,250))) %>%
     write_dta(file.path(path.facility.out,"stata","CEMS_Facility_Attributes.dta"))
