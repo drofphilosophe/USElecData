@@ -43,8 +43,7 @@ read_rds(
 
 read_rds(
   file.path(path.project,"data","out","EPA-CEMS","facility_data","rds","CEMS_Facility_Attributes.rds.bz2")
-  ) %>%
-  select(-geometry) -> CEMS.full.allyears
+  ) -> CEMS.full.allyears
 
 EIA860.generator %>%
   distinct(year,orispl.code, eia.generator.id) %>%
