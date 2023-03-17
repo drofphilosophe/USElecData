@@ -60,8 +60,26 @@ facility.coltypes = cols(
 facility <- tibble()
 for(yr in year.start:year.end) {
   writeLines(glue("\nLoading year {yr}"))
+  filepath.facility <- file.path(path.project,"data", "source", "EPA-CEMS","facility_data", glue("FacilityData_{yr}.csv.gz"))
+  
+  #Check to see if the source file exists
+  if(!file.exists(filepath.facility)) {
+    #If not, check to see if it's this year's file, which may not be published yet
+    if(yr == year(today())) {
+      writeLines(glue("No facility file for {yr}. This is expected before {yr} data are released, typically in April"))
+      writeLines("Skipping")
+      #Move on to the next loop iteration (which should end the loop)
+      next
+    } else {
+      #If it's not the current year file that is missing, exit with a non-zero status
+      writeLines(glue("No facility data for {yr}. Resource CEMS data before proceeding."))
+      writeLines("Exiting")
+      quit(save="no",status=-1)
+    }
+  }
+  
   read_csv(
-    file.path(path.project,"data", "source", "EPA-CEMS","facility_data", glue("FacilityData_{yr}.csv.gz")),
+    filepath.facility,
     col_types = facility.coltypes
   ) %>% 
     mutate(`Commercial Operation Date` = ymd(`Commercial Operation Date`)) %>%
@@ -489,7 +507,14 @@ facility %>%
   ) %>%
   #Merge in timezone offsets
   left_join(tz.offset.by.year,by=c("tz.name","year")) -> facility
-  
+
+facility %>%
+  mutate(
+    plant.latitude = st_coordinates(geometry)[,2],
+    plant.longitude = st_coordinates(geometry)[,1]
+  ) %>%
+  st_drop_geometry() -> facility
+
   
   
 #############################
