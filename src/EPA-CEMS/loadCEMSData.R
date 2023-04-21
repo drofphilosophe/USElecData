@@ -666,24 +666,22 @@ for(yr in year(date.start):year(date.end) ) {
             everything()
           ) -> this.year
       }
-      #We've finished the year. Write it to a file. 
+      
+      #We've finished the quarter. Write it to a file. 
       #Just going to used compressed RDS for now
-      if(exists("this.year")) {
-        if("rds" %in% project.local.config$output$formats) {
-          this.year %>%
-            write_rds(
-              file.path(path.hourly.out,"rds",str_c("CEMS_",yr,"Q",q,".rds.gz")), 
-              compress="gz"
-              )
-        }
+      #Always write RDS files
+      this.year %>%
+        write_rds(
+          file.path(path.hourly.out,"rds",str_c("CEMS_",yr,"Q",q,".rds.gz")), 
+          compress="gz"
+          )
         
-        if("dta" %in% project.local.config$output$formats) {
-          this.year %>%
-            rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
-            write_dta(
-              file.path(path.hourly.out,"stata",str_c("CEMS_",yr,"Q",q,".dta"))
-              )
-        }
+      if("dta" %in% project.local.config$output$formats) {
+        this.year %>%
+          rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
+          write_dta(
+            file.path(path.hourly.out,"stata",str_c("CEMS_",yr,"Q",q,".dta"))
+            )
       }
       
       
@@ -706,23 +704,20 @@ for(yr in year(date.start):year(date.end) ) {
           .groups="drop"
         ) -> this.daily
       
-      if(exists("this.daily")) {
-        if("rds" %in% project.local.config$output$formats) {
-          this.daily %>%
-            write_rds(
-              file.path(path.daily.out,"rds",paste0("CEMS_",yr,"Q",q,".rds.gz")), 
-              compress="gz"
+      #Always Write RDS Files
+      this.daily %>%
+        write_rds(
+          file.path(path.daily.out,"rds",paste0("CEMS_",yr,"Q",q,".rds.gz")), 
+          compress="gz"
+        )
+        
+      if("dta" %in% project.local.config$output$formats) {  
+        this.daily %>%
+          rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
+          write_dta(
+            file.path(path.daily.out,"stata",paste0("CEMS_",yr,"Q",q,".dta"))
             )
-        }
-          
-        if("dta" %in% project.local.config$output$formats) {  
-          this.daily %>%
-            rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
-            write_dta(
-              file.path(path.daily.out,"stata",paste0("CEMS_",yr,"Q",q,".dta"))
-              )
-        }
-      }      
+      }
       
       ###################
       ##Compute Monthly Summary
@@ -745,22 +740,19 @@ for(yr in year(date.start):year(date.end) ) {
           .groups="drop"
         ) -> this.monthly
       
-      if(exists("this.monthly")) {
-        if("rds" %in% project.local.config$output$formats) {
-          this.monthly %>%
-            write_rds(
-              file.path(path.monthly.out,"rds",paste0("CEMS_",yr,"Q",q,".rds.gz")), 
-              compress="gz"
-            )
-        }
+      #Always write RDS files
+      this.monthly %>%
+        write_rds(
+          file.path(path.monthly.out,"rds",paste0("CEMS_",yr,"Q",q,".rds.gz")), 
+          compress="gz"
+        )
         
-        if("dta" %in% project.local.config$output$formats) {  
-          this.monthly %>%
-            rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
-            write_dta(
-              file.path(path.monthly.out,"stata",paste0("CEMS_",yr,"Q",q,".dta"))
-            )
-        }
+      if("dta" %in% project.local.config$output$formats) {  
+        this.monthly %>%
+          rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
+          write_dta(
+            file.path(path.monthly.out,"stata",paste0("CEMS_",yr,"Q",q,".dta"))
+          )
       } 
       
       

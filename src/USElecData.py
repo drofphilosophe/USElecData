@@ -254,6 +254,13 @@ def processBuild(us_ed,sp_args) :
             print(product_dict["CEMS_Facility"])
             us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadFacilityData.R"))
 
+        #################
+        ## CEMS Operations - Hourly CEMS
+        #################
+        if "CEMS" in products or "CEMS_Operations" in products :
+            print(product_dict["CEMS_Operations"]) 
+            us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadCEMSData.R"))
+            
         ###############
         ## Data Crosswalks
         ###############
@@ -263,11 +270,10 @@ def processBuild(us_ed,sp_args) :
 
 
         #################
-        ## CEMS Operations
+        ## CEMS Operations - Net to Gross
         #################
         if "CEMS" in products or "CEMS_Operations" in products :
             print(product_dict["CEMS_Operations"]) 
-            us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadCEMSData.R"))
             us_ed.run_r_script(os.path.join("src","EPA-CEMS","netToGrossCalculation.R"))
 
         #################
