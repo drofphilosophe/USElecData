@@ -99,7 +99,7 @@ if(length(file.list) > 0) {
   #That will just be deleted. This establishes data types. 
   tibble(
     Name = "Not_a_file.txt",
-    mtime = ymh_hms("1969-07-20 20:17:40"),
+    mtime = ymd_hms("1969-07-20 20:17:40"),
     Year = 1969L,
     Quarter = 3L
   ) %>%
