@@ -360,7 +360,7 @@ class USElecDataClass :
         if os.path.isfile(scriptpath) :
             try :
                 print(f"\n----- Running Python script {scriptpath} -----")
-                retval = subprocess.call(f'python "{fullscriptpath}"')
+                retval = subprocess.call(f'python "{fullscriptpath}"',shell=True)
                 if retval != 0 :
                     print("----- Python Script exited with an error -----")
                     print(f"Script Path: {scriptpath}")
@@ -382,7 +382,7 @@ class USElecDataClass :
         if os.path.isfile(fullscriptpath) :
             try :
                 print(f"\n----- Running R script {scriptpath} -----")
-                retval = subprocess.call(f'Rscript "{fullscriptpath}"')
+                retval = subprocess.call(f'Rscript "{fullscriptpath}"',shell=True)
                 if retval != 0 :
                     print("----- R Script exited with an error -----")
                     print(f"Script Path: {scriptpath}")
