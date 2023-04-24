@@ -355,12 +355,15 @@ class USElecDataClass :
     #################################
     ## Handlers for running script files
     #################################
-    def run_python_script(self,scriptpath) :
+    def run_python_script(self,scriptpath,args="") :
         fullscriptpath = os.path.abspath(os.path.join(self.projectRoot,scriptpath))
         if os.path.isfile(scriptpath) :
             try :
                 print(f"\n----- Running Python script {scriptpath} -----")
-                retval = subprocess.call(f'python "{fullscriptpath}"',shell=True)
+                if args != "" :
+                    print(f"With arguments: {args}")
+                    
+                retval = subprocess.call(f'python "{fullscriptpath}" {args}',shell=True)
                 if retval != 0 :
                     print("----- Python Script exited with an error -----")
                     print(f"Script Path: {scriptpath}")
@@ -377,12 +380,15 @@ class USElecDataClass :
             
         return retval
 
-    def run_r_script(self,scriptpath) :
+    def run_r_script(self,scriptpath,args="") :
         fullscriptpath = os.path.abspath(os.path.join(self.projectRoot,scriptpath))
         if os.path.isfile(fullscriptpath) :
             try :
                 print(f"\n----- Running R script {scriptpath} -----")
-                retval = subprocess.call(f'Rscript "{fullscriptpath}"',shell=True)
+                if args != "" :
+                    print(f"With arguments: {args}")
+                    
+                retval = subprocess.call(f'Rscript "{fullscriptpath}" {args}',shell=True)
                 if retval != 0 :
                     print("----- R Script exited with an error -----")
                     print(f"Script Path: {scriptpath}")

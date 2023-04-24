@@ -101,12 +101,14 @@ def processInit(us_ed,sp_args) :
 ## Source
 ################        
 def processSource(us_ed,sp_args) :
-    print(
-        "USElecData Processing Source Data",
-        "",
-        "WARNING: The --resource flag is not currently supported",
-        sep="\n"
-        )
+
+    #Build the string of additional arguments to put on the command line
+    args_list = []
+    if sp_args.resource :
+        print("Resourcing all data")
+        args_list += ['--resource']
+
+    cmdline_args = ' '.join(args_list)
 
     ##Create a dictionary of source data product keys and descriptions
     source_dict = {
@@ -144,7 +146,7 @@ def processSource(us_ed,sp_args) :
         ################
         if "TZInfo" in sources :
             print(source_dict["TZInfo"])
-            us_ed.run_python_script(os.path.join("src","tz-info","getTZInfo.py"))
+            us_ed.run_python_script(os.path.join("src","tz-info","getTZInfo.py"),args=cmdline_args)
 
 
         ################
@@ -152,7 +154,7 @@ def processSource(us_ed,sp_args) :
         ################
         if "EIA860" in sources :
             print(source_dict["EIA860"])
-            us_ed.run_python_script(os.path.join("src","EIA-Form860","getEIAForm860.py"))
+            us_ed.run_python_script(os.path.join("src","EIA-Form860","getEIAForm860.py"),args=cmdline_args)
 
 
         ################
@@ -160,33 +162,35 @@ def processSource(us_ed,sp_args) :
         ################
         if "EIA923" in sources :
             print(source_dict["EIA923"])
-            us_ed.run_python_script(os.path.join("src","EIA-Form923","getEIAForm923.py"))
+            us_ed.run_python_script(os.path.join("src","EIA-Form923","getEIAForm923.py"),args=cmdline_args)
 
         ################
         ## EIA Form 923
         ################
         if "CEMS" in sources :
             print(source_dict["CEMS"])
-            us_ed.run_python_script(os.path.join("src","EPA-CEMS","downloadCEMSData.py"))
-            us_ed.run_python_script(os.path.join("src","EPA-CEMS","downloadFacilityInfo.py"))
+            us_ed.run_python_script(os.path.join("src","EPA-CEMS","downloadCEMSData.py"),args=cmdline_args)
+            us_ed.run_python_script(os.path.join("src","EPA-CEMS","downloadFacilityInfo.py"),args=cmdline_args)
 
         ###############
         ## NRC RPSR
         ###############
         if "NRC" in sources :
             print(source_dict["NRC"])
-            us_ed.run_python_script(os.path.join("src","NRC-RPSR","getReactorPowerStatusReports.py"))
+            us_ed.run_python_script(os.path.join("src","NRC-RPSR","getReactorPowerStatusReports.py"),args=cmdline_args)
             
         print("Data download complete")
     
 
 def processBuild(us_ed,sp_args) :
-    print(
-        "USElecData Building Data",
-        "",
-        "WARNING: The --rebuild flag is not currently supported",
-        sep="\n"
-        )
+    #Build the string of additional arguments to put on the command line
+    args_list = []
+    if sp_args.rebuild :
+        print("Rebuilding all data")
+        args_list += ['--rebuild']
+
+    cmdline_args = ' '.join(args_list)
+    
 
     ##Create a dictionary of source data product keys and descriptions
     product_dict = {
@@ -234,39 +238,39 @@ def processBuild(us_ed,sp_args) :
         ################
         if "EIA860" in products :
             print(product_dict["EIA860"])            
-            us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule3_Generators.R"))
-            us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule6.R"))
-            us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule2_Plants.R"))
+            us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule3_Generators.R"),args=cmdline_args)
+            us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule6.R"),args=cmdline_args)
+            us_ed.run_r_script(os.path.join("src","EIA-Form860","loadEIA860_Schedule2_Plants.R"),args=cmdline_args)
 
         ################
         ## EIA Form 923
         ################
         if "EIA923" in products :
             print(product_dict["EIA923"])
-            us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerationAndFuel.R"))
-            us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerator.R"))
-            us_ed.run_r_script(os.path.join("src","EIA-Form923","loadFuelPurchase.R"))
+            us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerationAndFuel.R"),args=cmdline_args)
+            us_ed.run_r_script(os.path.join("src","EIA-Form923","loadGenerator.R"),args=cmdline_args)
+            us_ed.run_r_script(os.path.join("src","EIA-Form923","loadFuelPurchase.R"),args=cmdline_args)
 
         ################
         ## CEMS Facilities
         ################
         if "CEMS" in products or "CEMS_Facility" in products :
             print(product_dict["CEMS_Facility"])
-            us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadFacilityData.R"))
+            us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadFacilityData.R"),args=cmdline_args)
 
         #################
         ## CEMS Operations - Hourly CEMS
         #################
         if "CEMS" in products or "CEMS_Operations" in products :
             print(product_dict["CEMS_Operations"]) 
-            us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadCEMSData.R"))
+            us_ed.run_r_script(os.path.join("src","EPA-CEMS","loadCEMSData.R"),args=cmdline_args)
             
         ###############
         ## Data Crosswalks
         ###############
         if "Crosswalks" in products :
             print(product_dict["Crosswalks"]) 
-            us_ed.run_r_script(os.path.join("src","EPA-CEMS","CEMStoEIAMap.R"))
+            us_ed.run_r_script(os.path.join("src","EPA-CEMS","CEMStoEIAMap.R"),args=cmdline_args)
 
 
         #################
@@ -274,14 +278,14 @@ def processBuild(us_ed,sp_args) :
         #################
         if "CEMS" in products or "CEMS_Operations" in products :
             print(product_dict["CEMS_Operations"]) 
-            us_ed.run_r_script(os.path.join("src","EPA-CEMS","netToGrossCalculation.R"))
+            us_ed.run_r_script(os.path.join("src","EPA-CEMS","netToGrossCalculation.R"),args=cmdline_args)
 
         #################
         ## NRC RPSR
         #################
         if "NRC" in products :
             print(product_dict["NRC"]) 
-            us_ed.run_r_script(os.path.join("src","NRC-RPSR","load-power-status-reports.R"))         
+            us_ed.run_r_script(os.path.join("src","NRC-RPSR","load-power-status-reports.R"),args=cmdline_args)         
 
         print("Data build complete")
 

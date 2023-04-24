@@ -31,8 +31,17 @@ if(is.null(project.config$sources$`EPA-CEMS`$`end-year`)) {
   date.end <- ymd(str_c(project.config$sources$`EPA-CEMS`$`end-year`,"-12-31"))
 }
 
+############################
+## Process arguments
+############################
+cmdline_args = commandArgs(trailingOnly=TRUE)
+
 #Set this flag to TRUE to rebuild all files
-REBUILD_FLAG = FALSE
+if("--rebuild" %in% cmdline_args) {
+  REBUILD_FLAG = TRUE
+} else {
+  REBUILD_FLAG = FALSE
+}
 
 
 
