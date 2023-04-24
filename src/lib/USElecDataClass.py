@@ -6,6 +6,7 @@ import os
 import sys
 import datetime
 import importlib.metadata
+import subprocess
 
 class USElecDataClass :
 
@@ -359,9 +360,12 @@ class USElecDataClass :
         if os.path.isfile(scriptpath) :
             try :
                 print(f"\n----- Running Python script {scriptpath} -----")
-                os.system(f'python "{fullscriptpath}"')
+                retval = subprocess.call(f'python "{fullscriptpath}"')
+                if retval != 0 :
+                    print("----- Python Script exited with an error -----")
+                    print(f"Script Path: {scriptpath}")
+                    sys.exit(-1)
                 print(f"\n----- End Python script {scriptpath} -----")
-                retval = 0
             except Exception as e :
                 print(e)
                 retval = -1
@@ -378,10 +382,15 @@ class USElecDataClass :
         if os.path.isfile(fullscriptpath) :
             try :
                 print(f"\n----- Running R script {scriptpath} -----")
-                os.system(f'Rscript "{fullscriptpath}"')
+                retval = subprocess.call(f'Rscript "{fullscriptpath}"')
+                if retval != 0 :
+                    print("----- R Script exited with an error -----")
+                    print(f"Script Path: {scriptpath}")
+                    sys.exit(-1)
                 print(f"----- End R script {scriptpath} -----\n")
-                retval = 0
             except Exception as e :
+                print(f"----- Error executing R Scipt -----")
+                print(f"Script path: {scriptpath}")
                 print(e)
                 retval = -1
                 sys.exit(-1)
