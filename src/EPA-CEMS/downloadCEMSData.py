@@ -219,7 +219,7 @@ try :
             buf.seek(0)
             
             #Write the buffer to a gzip file
-            path_out = os.path.join(outPathBase,fn + ".gzip")
+            path_out = os.path.join(outPathBase,fn + ".gz")
             print(f"Writing to {path_out}")
             with gzip.open(path_out,"wb") as zipout :
                 zipout.write(buf.read())
