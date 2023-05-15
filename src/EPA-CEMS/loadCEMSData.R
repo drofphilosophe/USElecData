@@ -231,7 +231,7 @@ column.spec = cols(
 )
 
 #Load orispl.code to time zone mappings
-read_rds(file.path(path.facility.intermediate,"CEMS_Facility_time_zones.rds")) %>%
+read_parquet(file.path(path.facility.intermediate,"CEMS_Facility_time_zones.parquet")) %>%
   mutate(tz.name = as.character(tz.name)) %>%
   select(orispl.code,tz.name) %>%
   arrange(orispl.code) -> tz.map
@@ -241,8 +241,8 @@ tz.map %>%
   select(orispl.code) %>%
   mutate(has.tz = TRUE) -> orispl.with.tz
 
-read_rds(
-  file.path(path.facility.out,"rds", "CEMS_Facility_Attributes.rds.bz2")
+read_parquet(
+  file.path(path.facility.out,"CEMS_Facility_Attributes.parquet")
   ) %>% 
   distinct(orispl.code, plant.name.cems,year) -> facility.names
 
