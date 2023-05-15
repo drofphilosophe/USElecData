@@ -4,9 +4,12 @@ channels:
 dependencies:
   - pyyaml
   - pytz
+  - pip:
+    - pyarrow
   - r-base
   - r-essentials
   - r-here
   - r-yaml
   - r-glue
   - r-sf
+  - r-arrow

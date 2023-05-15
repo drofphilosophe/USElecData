@@ -7,6 +7,7 @@ library(glue)
 library(haven)
 library(here)
 library(yaml)
+library(arrow)
 
 #Identifies the project root path using the
 #relative location of this script
@@ -322,6 +323,12 @@ facility.geodata.with.tz %>%
 
 #Save the results without the geometry
 #We'll put geometry in the master facility data file
+facility.geodata.with.tz %>%
+  st_drop_geometry() %>%
+  write_parquet(
+    file.path(path.facility.intermediate,"CEMS_Facility_time_zones.parquet")
+  )
+
 if("rds" %in% project.local.config$output$formats) {
   facility.geodata.with.tz %>%
     st_drop_geometry() %>%
@@ -527,7 +534,13 @@ facility %>%
 #############################
 ## Write ouptut file
 #############################
+facility %>%
+  write_parquet(
+    file.path(path.facility.out,"CEMS_Facility_Attributes.parquet")
+    )
+
 if("rds" %in% project.local.config$output$formats) {
+  writeLines("DEPRICATION WARNING: Writing .rds files from this script will be removed in a future version")
   dir.create(file.path(path.facility.out,"rds"),showWarnings = FALSE)
 
   facility %>%
@@ -536,9 +549,9 @@ if("rds" %in% project.local.config$output$formats) {
 }
 
 if("dta" %in% project.local.config$output$formats) {
+  writeLines("DEPRICATION WARNING: Writing .dta files from this script will be removed in a future version")
   dir.create(file.path(path.facility.out,"stata"),showWarnings = FALSE)
 
-  
   facility %>%
     rename_all(.funs=list( ~ str_replace_all(.,"[\\.\\s]", "_"))) %>%
     mutate_if(is_character, .funs=list(~str_sub(.,1,250))) %>%

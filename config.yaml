@@ -8,6 +8,7 @@ sources:
     #Release number of time zone data
     release: 2021c
   EPA-CEMS:
+    URL-API: https://api.epa.gov/easey
     URL-hourly: ftp://newftp.epa.gov/DMDnLoad/emissions/hourly/monthly
     start-year: 1995
     end-year:
@@ -23,5 +24,3 @@ sources:
     URL-base: https://www.nrc.gov/reading-rm/doc-collections/event-status/reactor-status/
     start-date: 1999-01-01
     end-date:
-
-      
