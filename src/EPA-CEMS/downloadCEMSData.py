@@ -83,9 +83,7 @@ req = urllib.request.Request(
 
 resp_data = None
 with io.StringIO() as buf :
-    #with urllib.request.urlopen(req) as resp :
-    print("WARNING: USING A LOCAL COPY OF THE REMOTE FILE LOG")
-    with open(r"c:\Users\archsmit\Desktop\cems_files.json","rb") as resp :
+    with urllib.request.urlopen(req) as resp :
         print("Requesting Bulk Data File Listing")
         buf.write(resp.read().decode('utf-8'))
 
