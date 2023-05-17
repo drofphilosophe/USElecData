@@ -33,6 +33,8 @@ import io
 import gzip
 #import tar
 import zipfile
+import pandas as pd
+import re
 
 
 ################
@@ -386,7 +388,7 @@ def processPackage(us_ed,sp_args) :
     filelist = [f for f in os.walk(os.path.join(us_ed.outputRoot,"data","out"))]
 
     file_counter = 0
-    with zipfile.ZipFile(sp_args.filename,mode="w") as zipout :
+    with zipfile.ZipFile(sp_args.filename,mode="w",compression=zipfile.ZIP_DEFLATED) as zipout :
         #######################
         ## Add non-data files to the archive which describe the data build
         #######################
@@ -399,13 +401,44 @@ def processPackage(us_ed,sp_args) :
             path = walker[0]
             #Iterate the files in this folder
             for f in walker[2] :
-                if "." + export_files in f :
+                if os.path.splitext(f)[1] == ".parquet" :
+                    print(f"Packing file {f}")
+                    #define the path to the file
                     fp = os.path.join(path,f)
-                    zipout.write(
-                        fp,
-                        arcname=os.path.relpath(fp,start=os.path.join(us_ed.outputRoot,"data","out"))
-                    )
-                    file_counter = file_counter + 1
+                    #Open a buffer with the appropraite output file type
+                    with io.BytesIO() as bufout :
+                        if export_files == "dta" :
+                            df = pd.read_parquet(fp)
+
+                            #Recast objects as strings and remove timezones from datetimes
+                            for c in df.columns :
+                                if df[c].dtype == "object" :
+                                    df[c] = df[c].astype('str')
+                                elif "datetime" in str(df[c].dtype) :
+                                    df[c] = df[c].dt.tz_localize(None)
+
+                            #Rename all columns to be stata-compliant
+                            df.rename(
+                                columns = lambda x : re.sub(r"[\s\.\-]","_",x)[0:32],
+                                inplace=True
+                                )
+                                
+                                
+
+                            #Write to stata, pandas will decide between stata 14 or 15 format
+                            df.to_stata(bufout,version=None)
+                            
+                        elif export_files == "csv" :
+                            pd.read_parquet(fp).to_csv(bufout)
+                        else :
+                            print(f"Unknown export format {export_files}")
+                            
+                        bufout.seek(0)
+                        zipout.writestr(
+                            os.path.relpath(fp,start=os.path.join(us_ed.outputRoot,"data","out")),
+                            bufout.read()
+                            )
+                        file_counter = file_counter + 1
             
         
         
