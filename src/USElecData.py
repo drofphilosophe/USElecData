@@ -405,37 +405,47 @@ def processPackage(us_ed,sp_args) :
                     print(f"Packing file {f}")
                     #define the path to the file
                     fp = os.path.join(path,f)
+                    
                     #Open a buffer with the appropraite output file type
                     with io.BytesIO() as bufout :
                         if export_files == "dta" :
+                            fp_out = os.path.join(path,os.path.splitext(f)[0] + ".dta")
+                                                  
                             df = pd.read_parquet(fp)
-
-                            #Recast objects as strings and remove timezones from datetimes
-                            for c in df.columns :
-                                if df[c].dtype == "object" :
-                                    df[c] = df[c].astype('str')
-                                elif "datetime" in str(df[c].dtype) :
-                                    df[c] = df[c].dt.tz_localize(None)
 
                             #Rename all columns to be stata-compliant
                             df.rename(
                                 columns = lambda x : re.sub(r"[\s\.\-]","_",x)[0:32],
                                 inplace=True
                                 )
-                                
-                                
+                            
+                            #Recast objects as strings and remove timezones from datetimes
+                            to_strL = []
+                            for c in df.columns :
+                                if df[c].dtype == "object" :
+                                    df[c] = df[c].astype('str')
+                                    #Add to the list of columns to conver to srtL
+                                    to_strL+=[c]
+                                elif "datetime" in str(df[c].dtype) :
+                                    df[c] = df[c].dt.tz_localize(None)
 
                             #Write to stata, pandas will decide between stata 14 or 15 format
-                            df.to_stata(bufout,version=None)
+                            df.to_stata(
+                                bufout,
+                                version=None,
+                                write_index=False,
+                                convert_strl=to_strL
+                                )
                             
                         elif export_files == "csv" :
+                            fp_out = os.path.join(path,os.path.splitext(f)[0] + ".csv")
                             pd.read_parquet(fp).to_csv(bufout)
                         else :
                             print(f"Unknown export format {export_files}")
                             
                         bufout.seek(0)
                         zipout.writestr(
-                            os.path.relpath(fp,start=os.path.join(us_ed.outputRoot,"data","out")),
+                            os.path.relpath(fp_out,start=os.path.join(us_ed.outputRoot,"data","out")),
                             bufout.read()
                             )
                         file_counter = file_counter + 1
