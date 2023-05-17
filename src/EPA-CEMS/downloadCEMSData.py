@@ -190,11 +190,12 @@ try :
             download_time = dt.datetime.now(dt.timezone.utc)
 
             success = False
+            fail_count = 0
             while success == False :
                 try :
                     with urllib.request.urlopen(req) as resp :
                         buf.write(resp.read())
-                    success = True
+                        success = True
                 except :
                     if fail_count >= HTTPFailMax :
                         print("Maximum retrys exceeded. Aborting")
