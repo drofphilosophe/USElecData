@@ -15,6 +15,7 @@ import hashlib
 import csv
 import json
 import re
+import http.client
 
 #########################
 ## Load and register the configuration
@@ -174,10 +175,7 @@ try :
     for fn in files_to_download :
         #Do downloads here
         url = f"{api_url}/bulk-files/{files_to_download[fn]['url']}"
-        req = urllib.request.Request(
-            url,
-            headers={"x-api-key" : api_key}
-            )
+        
 
         print(f"Downloading {url}")
         #Read the file to a buffer
@@ -190,28 +188,35 @@ try :
             success = False
             fail_count = 0
             while success == False :
+                req = urllib.request.Request(
+                    url,
+                    headers={
+                        "x-api-key" : api_key,
+                        #Start the download at a point commensurate with the number of bytes we've already downloaded
+                        "Range" : f"bytes={buf.tell()}-"
+                    }
+                    )
+                
                 try :
                     with urllib.request.urlopen(req) as resp :
-                        #Implement a handler for incomplete reads
-                        incomplete_read_count = 0
-                        while not success and incomplete_read_count < 10 :
-                            try :
-                                buf.write(resp.read())
-                                #If we've made it here, we have downloaded a full file.    
-                                success = True
-                            except http.client.IncompleteRead :
-                                #Try again on an incomplete read
-                                incomplete_read_count+=1
-                            except Exception as e :
-                                #Pass other exceptions
-                                raise e
+                        buf.write(resp.read())
+                        #If we've made it here, we have downloaded a full file.    
+                        success = True
                             
-                        
+                except http.client.IncompleteRead as e :
+                    #On an incomplete read flush what we have to the buffer
+                    #We'll try to resume this download
+                    print("Incomplete Read. Flushing download and resuming")
+                    buf.write(e.partial)
+                    
                 except Exception as e :
                     if fail_count >= HTTPFailMax :
                         print("Maximum retrys exceeded. Aborting")
                         raise e
                     else :
+                        #Flush the buffer if it has any content
+                        buf.seek(0)
+                        buf.truncate(0)
                         print("Download failed. Retrying")
                         fail_count+=1
 
