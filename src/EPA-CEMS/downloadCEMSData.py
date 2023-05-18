@@ -192,9 +192,22 @@ try :
             while success == False :
                 try :
                     with urllib.request.urlopen(req) as resp :
-                        buf.write(resp.read())
-                        success = True
-                except :
+                        #Implement a handler for incomplete reads
+                        incomplete_read_count = 0
+                        while not success and incomplete_read_count < 10 :
+                            try :
+                                buf.write(resp.read())
+                                #If we've made it here, we have downloaded a full file.    
+                                success = True
+                            except http.client.IncompleteRead :
+                                #Try again on an incomplete read
+                                incomplete_read_count+=1
+                            except Exception as e :
+                                #Pass other exceptions
+                                raise e
+                            
+                        
+                except Exception as e :
                     if fail_count >= HTTPFailMax :
                         print("Maximum retrys exceeded. Aborting")
                         raise e
