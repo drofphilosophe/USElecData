@@ -1,7 +1,6 @@
 library(tidyverse)
 library(lubridate)
 library(sf)
-library(curl)
 library(glue)
 library(haven)
 library(here)
