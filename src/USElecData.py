@@ -34,6 +34,7 @@ import gzip
 #import tar
 import zipfile
 import pandas as pd
+import datetime as dt
 import re
 
 
@@ -388,7 +389,7 @@ def processPackage(us_ed,sp_args) :
     filelist = [f for f in os.walk(os.path.join(us_ed.outputRoot,"data","out"))]
 
     file_counter = 0
-    with zipfile.ZipFile(sp_args.filename,mode="w",compression=zipfile.ZIP_DEFLATED) as zipout :
+    with zipfile.ZipFile(sp_args.filename,mode="w",compression=zipfile.ZIP_DEFLATED,allowZip64=True,compresslevel=9) as zipout :
         #######################
         ## Add non-data files to the archive which describe the data build
         #######################
@@ -423,9 +424,17 @@ def processPackage(us_ed,sp_args) :
                             to_strL = []
                             for c in df.columns :
                                 if df[c].dtype == "object" :
-                                    df[c] = df[c].astype('str')
-                                    #Add to the list of columns to conver to srtL
-                                    to_strL+=[c]
+                                    if type(df[c][0]) is dt.date :
+                                        #Convert dates to datetimes for easier exporting
+                                        df[c] = pd.to_datetime(df[c])
+                                    elif type(df[c][0]) is not str :
+                                        #Convert all non-string types to strings
+                                        df[c] = df[c].astype('str')
+                                        #Add to the list of columns to conver to srtL
+                                        to_strL+=[c]
+                                    else :
+                                        #Add to the list of columns to conver to srtL
+                                        to_strL+=[c]
                                 elif "datetime" in str(df[c].dtype) :
                                     df[c] = df[c].dt.tz_localize(None)
 
