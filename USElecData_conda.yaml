@@ -2,8 +2,10 @@ name: USElecData
 channels:
   - conda-forge
 dependencies:
+  - python>=3.8
   - pyyaml
   - pytz
+  - pip
   - pip:
     - pyarrow
   - r-base
