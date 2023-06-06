@@ -21,6 +21,7 @@ library(lubridate)
 library(haven)
 library(here)
 library(yaml)
+library(arrow)
 
 #Identifies the project root path using the
 #relative location of this script
@@ -220,7 +221,7 @@ eia923.generator %>%
 ##########################################
 ## CEMS data prep
 ##########################################
-read_rds(file.path(path.project,"data","out","EPA-CEMS","monthly","rds","CEMS_All_Months.rds.gz")) %>%
+read_parquet(file.path(path.project,"data","out","EPA-CEMS","monthly","monthly-CEMS-all.parquet")) %>%
   select(orispl.code,cems.unit.id,month,elec.load.mwh,steam.load.mmbtu,total.heat.input.mmbtu,elec.heat.input.mmbtu) %>%
   rename(Month=month) %>%
   mutate(year=year(Month)) %>%
@@ -408,7 +409,13 @@ if(row.count > 0) {
 
 
 #I know the output folders exist because I loaded a crosswalk from this folder as part of this script
+net.2.gross.ratios %>%
+  write_parquet(
+    file.path(path.project,"data","out","crosswalks","EIANet_to_CEMSGross_Ratios.parquet")
+  )
+
 if("rds" %in% project.local.config$output$formats) {
+  writeLines("DEPRICATION WARNING: Writing .rds files from this script will be removed in a future version")
   net.2.gross.ratios %>%
     write_rds(
       file.path(path.project,"data","out","crosswalks","rds","EIANet_to_CEMSGross_Ratios.rds.gz"), 
@@ -417,6 +424,7 @@ if("rds" %in% project.local.config$output$formats) {
 }
 
 if("dta" %in% project.local.config$output$formats) {  
+  writeLines("DEPRICATION WARNING: Writing .dta files from this script will be removed in a future version")
   net.2.gross.ratios %>%
     rename_all(.funs=list( ~ str_replace_all(.,"\\.","_"))) %>%
     write_dta(
