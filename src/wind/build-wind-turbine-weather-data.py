@@ -134,20 +134,18 @@ while d <= end_date :
                 
             #Extract the values for every hour at these points
             #This returns an hour x id array
-            value_array = xrds[attribute_item].values[:,yidx_list,xidx_list]
-            #value_array is a  time x location array of values
-            #Flatten it so we have all values for id[0], then id[1], etc
-            value_vec = value_array.flatten(order='F')
-
+            #Flatten it to a vector
+            value_vec = xrds[attribute_item].values[:,yidx_list,xidx_list].flatten()
+            
             #Create a vector of the same length that is the corrisponding value from id_list
             #I do this by making a 2D array of IDs then flattening it as above
-            id_vec = np.array([[id_list] for h in hour_list]).flatten(order='F') 
+            id_vec = np.array([[id_list] for h in hour_list]).flatten() 
 
             #Create a vector of datetimes for each event. This creates a scalar datetime for an hour
             #Then expand it to each ID across columns and then each hour across rows
             time_vec = np.array( 
                 [ [dt.datetime.combine(d,dt.time(h,0,0), tzinfo=dt.timezone.utc)]*len(id_list) for h in hour_list] 
-                ).flatten(order='F')
+                ).flatten()
 
             df = pd.DataFrame({
                 'datetime_utc' : time_vec,
