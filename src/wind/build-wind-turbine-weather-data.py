@@ -31,7 +31,6 @@ with open(os.path.join(projectRoot,"config_local.yaml")) as yamlin :
 
 outputRoot = projectLocalConfig["output"]["path"]
 
-
 #########################
 ## Path to NOAA RSIG Wind Data
 #########################
@@ -61,8 +60,7 @@ lon_list = turbines["plant.longitude"].to_numpy()
 #Define start and end dates
 start_date = projectConfig["sources"]["wind"]["start-date"]
 end_date = projectConfig["sources"]["wind"]["end-date"]
-#If there is no end date, use yesterday. We'll fail gracefully if 
-#Data don't exist
+#If there is no end date, use yesterday. We'll gracefully skip dates if data don't exist
 if end_date is None :
     end_date = dt.date.today() - dt.timedelta(days=1)
 
@@ -81,10 +79,36 @@ d = start_date - dt.timedelta(days=1)
 df_list = []
 
 #Loop through each date
-while d < end_date :
+prev_year = None
+while d <= end_date :
     #Increment the counter
     d+=dt.timedelta(days=1)
     print(f"Processing {d}")
+
+    #######################
+    #Write an output file if we're moving to a new year or we've processed the final date
+    #######################
+    #Our intial condition is prev_year = None
+    if prev_year is None :
+        prev_year = d.year
+    elif d.year != prev_year or d > end_date :
+        if len(df_list) > 0 :
+            print(f"Writing output file for {prev_year}")
+            pd.concat(df_list,ignore_index=True).to_parquet(
+                os.path.join(outputRoot,"data","intermediate","wind",f"wind-turbine-weather-data-{prev_year}.parquet"),
+                index=False)
+        else :
+            print(f"No data for {prev_year}. Was this expected?")
+            print("No output file created")
+
+        #Reset the df_list
+        df_list = []
+        prev_year = d.year
+        
+        #If we're past the end date, terminate
+        #Exiting this while loop is sufficient
+        if d > end_date :
+            break
 
     #Loop through each data item
     for data_item in data_list :
@@ -109,6 +133,7 @@ while d < end_date :
             hour_list = xrds["hour"].values.astype(np.int16)
                 
             #Extract the values for every hour at these points
+            #This returns an hour x id array
             value_array = xrds[attribute_item].values[:,yidx_list,xidx_list]
             #value_array is a  time x location array of values
             #Flatten it so we have all values for id[0], then id[1], etc
@@ -116,11 +141,12 @@ while d < end_date :
 
             #Create a vector of the same length that is the corrisponding value from id_list
             #I do this by making a 2D array of IDs then flattening it as above
-            id_vec = np.array([id_list]*len(hour_list)).flatten(order='F') 
+            id_vec = np.array([[id_list] for h in hour_list]).flatten(order='F') 
 
-            #Create a vector of datetimes for each event
+            #Create a vector of datetimes for each event. This creates a scalar datetime for an hour
+            #Then expand it to each ID across columns and then each hour across rows
             time_vec = np.array( 
-                [ [dt.datetime.combine(d,dt.time(hour_list[i],0,0), tzinfo=dt.timezone.utc)]*len(id_list) for i in range(0,len(hour_list))] 
+                [ [dt.datetime.combine(d,dt.time(h,0,0), tzinfo=dt.timezone.utc)]*len(id_list) for h in hour_list] 
                 ).flatten(order='F')
 
             df = pd.DataFrame({
@@ -132,7 +158,7 @@ while d < end_date :
 
             df_list += [df]
 
-pd.concat(df_list,ignore_index=True).to_parquet(
-    os.path.join(outputRoot,"intermediate","wind","wind-turbine-weather-data.parquet"),
-    index=False)
+
+
+
         
