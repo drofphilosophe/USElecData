@@ -1,11 +1,9 @@
 #This script requires an anaconda environment like the following
 #conda create -n GeoProcessing -c conda-forge python numpy scipy xarray rasterio rioxarray netCDF4
 ######################
-## downloadCEMSData.py
+## build-wind-turbine-data.py
 ##
-## This script downloads hourly CEMS
-## operation data using the CAMPD
-## bulk files interface
+## Build a dataset of hourly wind speeds and direction for all US wind turbines
 #######################
 import os
 import numpy as np
@@ -42,7 +40,8 @@ if rsig_data_path is None :
 #Define a dictionary of all the wind data we'd like to collect
 #It's a dataset name as the key followed by attributes as a list
 data_list = {
-    "hrrr.wind_10m" : ['wind_velocity','wind_azimuth']
+    "hrrr.wind_10m" : ['wind_velocity','wind_azimuth'],
+    "hrrr.wind_80m" : ['wind_velocity','wind_azimuth']
     }
 
 ########################
