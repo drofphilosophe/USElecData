@@ -11,6 +11,7 @@ library(glue)
 library(here)
 library(yaml)
 library(jsonlite)
+library(arrow)
 
 #Identifies the project root path using the
 #relative location of this script
@@ -130,8 +131,8 @@ all.data %>%
   
 #Write out a dataset of the power reports.)
 all.data %>%
-  write_rds(
-    file.path(path.NRC.out,"NRC-ReactorPowerReports.rds.gz"), 
+  write_parquet(
+    file.path(path.NRC.out,"NRC-ReactorPowerReports.parquet"), 
     compress="gz"
     )
 
@@ -146,8 +147,8 @@ all.data %>%
 
 #Write out a dataset of the power reports.)
 scrams %>%
-  write_rds(
-    file.path(path.NRC.out,"NRC-ReactorSCRAMs.rds.gz"), 
+  write_parquet(
+    file.path(path.NRC.out,"NRC-ReactorSCRAMs.parquet"), 
     compress="gz"
     )
 
@@ -303,27 +304,14 @@ for(yr.data in group_split(reactor.generation.hourly)) {
   
   writeLines(glue("Writing data for {yr}"))
   
-  if("rds" %in% project.local.config$output$formats) {
+  dir.create(file.path(path.NRC.out,"hourly"),showWarnings = FALSE,recursive = TRUE)
     
-    dir.create(file.path(path.NRC.out,"rds"),showWarnings = FALSE,recursive = TRUE)
-    
-    yr.data %>%
-      select(-year) %>%
-      write_rds(
-        file.path(path.NRC.out,"rds",glue("Nuclear_generation_by_unit_hour_{yr}.rds.gz")),
-        compress="gz"
-      )
-    
-  }
-  
-  if("dta" %in% project.local.config$output$formats) {
-    dir.create(file.path(path.NRC.out,"stata"),showWarnings = FALSE, recursive = TRUE)
-    
-    yr.data %>%
-      rename_all(.funs=list( ~ str_replace_all(.,r"{[\.\s]}", "_"))) %>%
-      rename_all(.funs=list(~str_sub(.,1,31))) %>%
-      write_dta(file.path(path.NRC.out,"stata",glue("Nuclear_generation_by_unit_hour_{yr}.dta")))
-  }
+  yr.data %>%
+    select(-year) %>%
+    write_rds(
+      file.path(path.NRC.out,"hourly",glue("Nuclear_generation_by_unit_hour_{yr}.parquet")),
+      compress="gz"
+    )
 }
 
 

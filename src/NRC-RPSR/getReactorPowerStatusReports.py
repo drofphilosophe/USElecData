@@ -1,4 +1,4 @@
-import urllib.request
+import urllib.request, urllib.error
 from bs4 import BeautifulSoup
 import csv
 import gzip
@@ -9,6 +9,7 @@ import tarfile
 import datetime as dt
 import socket
 import yaml
+import http.cookiejar
 
 #########################
 ## Load and register the configuration
@@ -50,7 +51,8 @@ else :
 base_URL = projectConfig["sources"]["NRC-RPSR"]["URL-base"]
 
 #Determine the first date to process
-start_date = projectConfig["sources"]["NRC-RPSR"]["start-date"]
+#start_date = projectConfig["sources"]["NRC-RPSR"]["start-date"]
+start_date = dt.date(2023,1,1)
 
 #read the end date as a string because we'll need to do some work on it
 end_date = projectConfig["sources"]["NRC-RPSR"]["end-date"]
@@ -72,7 +74,7 @@ else :
 
 class RPSR :
     #A formatted string with the URL of each page
-    URL_pattern = "{baseURL}/{year:4.0f}/{year:04d}{month:02d}{day:02d}ps.html"
+    URL_pattern = "{baseURL}{year:4.0f}/{year:04d}{month:02d}{day:02d}ps.html"
 
     #Formatted string for the name of gzipped TARs of the downloaded HTML pages
     rawArchivePattern = "ReactorPowerStatus_Raw_{year:04d}.tar.gz"
@@ -85,7 +87,10 @@ class RPSR :
 
     #HTTP headerst to advertise in a request
     headers = {
-        'User-Agent' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36'
+        'User-Agent' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Connection" : 'keep-alive'
         }
 
     #HTTP timeout in seconds
@@ -104,7 +109,7 @@ class RPSR :
     BAD_DATES = [
         dt.date(1999,5,8)
         ]
-
+    
     
     def __init__(self) :
 
@@ -130,15 +135,40 @@ class RPSR :
         #We'll update it as we read in data
         self.parsedColNames = set(["Date"])
 
+        #Define a cookie jar
+        self.cookie_jar = http.cookiejar.LWPCookieJar()
+        self.url_opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookie_jar))
+
     def setBaseURL(self,url) :
+        print(f"Loading Base URL Page: {url}")
         self.base_URL = url
-        
+        #Get cookies by opening the base URL
+        req = urllib.request.Request(self.base_URL,headers=self.headers)
+        try :
+            with self.url_opener.open(req, timeout=self.httpTimeout) as resp :
+                _ = resp.read()
+        except urllib.error.HTTPError as e :
+                if e.code == 404 :
+                    print("\tBase URL does not exist")
+                else :
+                    print("\tHTTP Error with base URL Code:", e.code)
+        except urllib.error.URLError as e:
+            print("\tURL Error with Base URL")
+        except socket.timeout as e :
+            print("\tSocket Timeout with Base URL.")
+        except Exception as e :
+            print("\tSome other error with the base URL")
+            print(str(e))
+
+        #Add this url as the Referer header
+        self.headers["Referer"] = url
+
     def setDataPath(self,path) :
         if os.path.isdir(path) :
             self.dataPath = path
         else :
             print("The specified data folder does not exist")
-            raise FileNotFoundException
+            raise FileNotFoundError
 
     def setYear(self,yr) :
         self.year = yr
@@ -198,8 +228,10 @@ class RPSR :
     # 3 - Other HTTP error
     # 4 - Other Error
     
-    def getReport(self,d) :
-        URL = self.URL_pattern.format(baseURL=self.base_URL,year=d.year,month=d.month,day=d.day)
+    def get_annual_report(self,yr) :
+        URL = f"{self.base_URL}{yr:04d}/{yr:04d}powerstatus.txt"
+
+        print("Trying", URL)
 
         #Build a request
         req = urllib.request.Request(URL,headers=self.headers)
@@ -211,7 +243,58 @@ class RPSR :
         with io.BytesIO() as buf :
             #Attempt to download the page
             try :
-                with urllib.request.urlopen(req, timeout=self.httpTimeout) as response :
+                with self.url_opener.open(req, timeout=self.httpTimeout) as response :
+                    buf.write(response.read())
+                    status = 0
+                    
+            except urllib.error.HTTPError as e :
+                if e.code == 404 :
+                    if self.DEBUG > 0 :
+                        print("\tFile does not exist. Skipping")
+                    status = 2
+                else :
+                    if self.DEBUG > 0 :
+                        print("\tDownload failed. Error code:", e.code)
+                    status = 3
+            except urllib.error.URLError as e:
+                if self.DEBUG > 0 :
+                    print("\tURL Error. Likley a timeout")
+                status = 1
+            except socket.timeout as e :
+                if self.DEBUG > 0 :
+                    print("\tSocket Timeout.")
+                status = 1
+            except Exception as e :
+                if self.DEBUG > 0 :
+                    print("\tOtherException")
+                    print(str(e))
+                status = 4
+                #raise e
+
+            #If we downloaded the page, add it to the fileDict
+            if status == 0 :
+                buf.seek(0)
+                self.fileDictDirty = True
+                self.fileDict.update( {d : buf.read()} )
+
+        return status
+    
+    def get_daily_report(self,d) :
+        URL = self.URL_pattern.format(baseURL=self.base_URL,year=d.year,month=d.month,day=d.day)
+
+        print("Trying", URL)
+
+        #Build a request
+        req = urllib.request.Request(URL,headers=self.headers)
+
+        #Set the status
+        status = -1
+        
+        #Read buffer for the page
+        with io.BytesIO() as buf :
+            #Attempt to download the page
+            try :
+                with self.url_opener.open(req, timeout=self.httpTimeout) as response :
                     buf.write(response.read())
                     status = 0
                     
@@ -271,7 +354,7 @@ class RPSR :
             status = -1
             while failCount < self.failMax :
                 time.sleep(self.httpDelay)
-                status = self.getReport(d)
+                status = self.get_daily_report(d)
                 if status == 0 :
                     print(".",end='')
                     break
@@ -312,8 +395,8 @@ class RPSR :
         #Does the archive exist?
         if not os.path.isfile(rawArchivePath) :
             print("The archive for",d,"does not exist")
-            print("I expected file",rawArchviePath)
-            raise FileNotFoundException
+            print("I expected file",rawArchivePath)
+            raise FileNotFoundError
 
         #Open the archive
         with gzip.open(rawArchivePath,mode="r") as gzfile :
@@ -434,22 +517,25 @@ for yr in range(start_date.year,end_date.year + 1) :
     #Read any preexisting archive
     P.readArchive()
     
-    #Loop through every day this year or starting with the StartDate
-    d = max(start_date,dt.date(yr,1,1))
-    #Download the data if we don't have it
-    try :
+    if P.get_annual_report(yr) == 0 :
+        P.parseReport(yr)
+    else :
+        #Loop through every day this year or starting with the StartDate
+        d = max(start_date,dt.date(yr,1,1))
+        #Download the data if we don't have it
+        try :
+            while d < min(dt.date(yr+1,1,1),end_date) :
+                P.tryReport(d)
+                d+=dt.timedelta(days=1)
+        finally :
+            P.writeArchive()
+
+        d = max(start_date,dt.date(yr,1,1))   
+
+        ##Parse the raw HTML into a CSV
         while d < min(dt.date(yr+1,1,1),end_date) :
-            P.tryReport(d)
+            P.parseReport(d)
             d+=dt.timedelta(days=1)
-    finally :
-        P.writeArchive()
-
-    d = max(start_date,dt.date(yr,1,1))   
-
-    ##Parse the raw HTML into a CSV
-    while d < min(dt.date(yr+1,1,1),end_date) :
-        P.parseReport(d)
-        d+=dt.timedelta(days=1)
     P.writeParsedData()
 
 
