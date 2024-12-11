@@ -10,4 +10,4 @@ output:
     - dta
 auth:
   #An API key to the EPA's CAMPD interface
-  EPA-CAMPD-API-key:
+  EPA-CAMPD-API-key:cai0gX5ZxcDwtESkblTHN3pPxfVdepYSXcBvW8PN
